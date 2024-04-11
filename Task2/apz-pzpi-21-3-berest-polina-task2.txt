@@ -1,0 +1,909 @@
+     МЕТА РОБОТИ
+
+     Метою виконання лабораторної роботи є набуття навичок із розробки серверних застосунків для великих проєктів, зокрема для розроблюваної програмної системи для для автоматизації логістики інтернет-шопінгу для малих та середніх бізнесів.
+     
+     ОПИС АРХІТЕКТУРИ СИСТЕМИ
+     1.1 Опис архітектури серверної частини
+
+     Серверна частина додатку має багаторівневу Onion-архітектуру, що включає рівні представлення, сервісів, бізнес логіки та доступу до даних. 
+     EnRoute.API складається з контролерів, валідаторів та методів запуску сервера.
+     EnRoute.Domain містить доменні моделі та контекст Entity Framework (див. додаток А) для доступу даних.
+     EnRoute.Infrastructure містить необхідні для роботи системи сервіси, константи, методи розширення.
+     EnRoute.Common складається з констант та моделей конфігурації.
+     Систему загалом представлено у архітектурному стилі клієнт-сервер, дотримано архітектурний стиль REST (серверний застосунок не зберігає стан) за стандартами OData. 
+     У серверному застосунку використано патерни Dependency Injection, Unit of Work, Iterator та Strategy Factory.
+
+
+1.2 Структура бази даних
+
+     Таблиці бази даних приведено до 3 нормальної форми. Для побудови реляційної бази даних спершу було створено ER-діаграму (рис. 1), усього вийшло 13 сутностей зі зв’язками один-до-багатьох та один-до-одного.
+     У створеній базі даних також існує таблиця __EFMigrationsHistory, що потрібна для контролю міграцій та IssuedTokens для тимчасового зберігання токенів та токенів для оновлення. 
+     
+
+
+     2 ОПИС ІНЖЕНЕРНИХ РІШЕНЬ
+     2.1 Робота з базою даних
+
+     Як базу даних було обрано реляційну в MS SQL Server. Ця база легко інтегрується з обраною мовою програмування – C#, база добре масштабована, може бути інтегрована до Azure. 
+     У якості способу роботи з базою даних було обрано Entity Framework Core. 
+     Як метод створення моделі бази даних обрано підхід Code First – спершу було описано об’єкти мовою C#: створено доменні моделі та контекст бази даних (див. додаток А). 
+     Для ідентифікаторів моделей використано унікальні ідентифікатори (GUID): це дозволить робити злиття даних, майже гарантовано уникаючи проблем із дублюванням ідентифікаторів. 
+
+     2.2 Специфікація REST API
+
+     Для обміну даними з клієнтами використано веб-протокол OData. 
+     За принципами REST API було реалізовано «базовий контролер» (див. додаток Б). Успадкувавши контролер, можна зробити базовий API для будь-якої моделі. 
+     Під принципами REST API у контексті роботи з даними мається на увазі відповідність кожного методу HTTP певній дії. Наприклад, для моєї системи це метод POST для створення, PUT для оновлення, DELETE для видалення та GET для отримання запису (табл. 2.2).
+
+Посилання	Метод	Призначення
+/api/Auth/login	POST	Вхід до системи (авторизація)
+/api/Auth/register	POST	Реєстрація користувача
+/api/Auth/registerCompany	POST	Реєстрація користувача як менеджера компанії
+/api/Auth/refresh-token	POST	Отримання нового токена на основі токена для оновлення
+/api/Backup/create	POST	Створення бекапу
+/api/Backup/all	GET	Отримання всіх бекапів
+/odata/Categories	GET	Отримання всіх категорій
+/odata/Categories/{key}	GET	Отримання конкретної категорії
+/odata/Categories	POST	Створення категорії товарів
+/odata/Categories/{key}	PUT	Редагування категорії
+/odata/Categories/{key}	DELETE	Видалення категорії
+/odata
+/CounterDeinstallationRequests	GET	Отримання всіх заявок про деінсталяцію точок видачі
+/odata
+/CounterDeinstallationRequests /{key}	GET	Отримання всіх заявок про деінсталяцію точок видачі від певної компанії
+/odata
+/CounterDeinstallationRequests /{key}	GET	Отримання конкретної заявки про деінсталяцію точки видачі
+/odata
+/CounterDeinstallationRequests	POST	Створення заявки на деінсталяцію точки видачі
+/odata
+/CounterDeinstallationRequests /{key}	PUT	Редагування заявки на деінсталяцію точки видачі
+/odata
+/CounterDeinstallationRequests /{key}	DELETE	Видалення заявки на деінсталяцію холодильника
+/odata/CounterInstallationRequests	GET	Отримання всіх заявок про встановлення точок видачі
+/odata
+/CounterІnstallationRequests 
+/{key}	GET	Отримання всіх заявок про встановлення точок видачі від певної компанії
+/odata
+/CounterІnstallationRequests 
+/{key}	GET	Отримання конкретної заявки про встановлення точки видачі
+/odata
+/CounterІnstallationRequests	POST	Створення заявки на встановлення точки видачі із указанням необхідної конфігурації 
+/odata
+/CounterІnstallationRequests
+/{key}	PUT	Редагування заявки на встановлення точки видачі
+/odata
+/CounterІnstallationRequests 
+/{key}	DELETE	Видалення заявки на встановлення точки видачі
+/api/CounterInstallationRequests
+/{key}/fulfill	PUT	Підтвердження виконання заявки на встановлення точки видачі,¬ зміна стану заявки, створення об’єкту точки видачі та необхідної кількості комірок заданої в заявці конфігурації
+/api/Delivery/get-delivery-list/{key}	GET	Отримання інформації для здійснення доставки замовлень до точок видачі певної компанії
+/ api/Delivery
+/get-counter-delivery-list/{key}	GET	Отримання інформації для здійснення доставки замовлень до конкретної точки видачі
+/odata/Goods	GET	Отримання всіх товарів
+/odata/Goods/{key}	GET	Отримання всіх товарів з асортименту певної компанії
+/odata/Goods/{key}	GET	Отримання конкретного товару
+/odata/Goods/{key}	GET	Отримання товарів певної категорії
+/odata/Goods	POST	Створення товару
+/odata/Goods/{key}	PUT	Редагування товару
+/odata/Goods/{key}	DELETE	Видалення товару
+/api/OrderItems
+/Recommendations	GET	Отримання персональних рекомендацій щодо товарів для замовлення
+/odata/OrderItems	GET	Отримання всіх позицій усіх актуальних замовлень
+/odata/OrderItems/{key}	GET	Отримання всіх позицій з конкретного замовлення
+/odata/OrderItems/{key}	GET	Отримання всіх позицій із замовлень на товари певної організації
+/odata/OrderItems	POST	Створення нової позиції в замовленні
+/odata/OrderItems/{key}	PUT	Редагування позиції замовлення
+/odata/OrderItems/{key}	DELETE	Видалення позиції з замовлення
+/odata/Orders	GET	Отримання всіх замовлень
+/odata/Orders/{key}	GET	Отримання всіх замовлень користувача
+/odata/Orders/{key}	GET	Отримання конкретного замовлення
+/odata/Orders	POST	Створення замовлення
+/odata/Orders/{key}	PUT	Отримання замовлення – взаємодія з холодильником
+/odata/Orders/{key}	DELETE	Видалення замовлення
+/odata/Organizations	GET	Отримання всіх організацій
+/odata/Organizations/{key}	GET	Отримання конкретної організації
+/odata/Organizations	POST	Створення організації
+/odata/Organizations/{key}	PUT	Редагування організації
+/odata/Organizations/{key}	DELETE	Блокування організації
+/odata/PickupCounters	GET	Отримання всіх точок видачі
+/odata/PickupCounters/{key}	GET	Отримання конкретної точки видачі
+/odata/PickupCounters/{key}	GET	Отримання всіх точок видачі, якими користується певна організація
+/odata/PickupCounters	POST	Створення точки видачі в системі після підтвердження інсталяції адміністратором
+/odata/PickupCounters/{key}	PUT	Редагування налаштувань точки видачі
+/odata/PickupCounters/{key}	DELETE	Видалення інформації про точку видачі після підтвердження адміністратором деінсталяції точки видачі
+/odata/Producers	GET	Отримання всіх виробників товарів, доданих до системи
+/odata/Producers/{key}	GET	Отримання конкретного виробника
+/odata/Producers	POST	Додавання інформації про виробника
+/odata/Producers/{key}	PUT	Редагування інформації про виробника
+/odata/Producers/{key}	DELETE	Видалення інформації про виробника із каскадним видаленням його товарів 
+/api/Statistics/Admin	GET	Отримання статистики щодо активності використання компаніями системи та зареєстрованих точок видачі
+/api/Statistics/Organization
+/{key}	GET	Отримання компанією статистики щодо активності використання точок видачі, кількості та видів замовлень у різних точках встановлення 
+/odata
+/TechInspectionRequests	GET	Отримання всіх запитів на технічну підтримку точок видачі
+/odata
+/TechInspectionRequests /{key}	GET	Отримання конкретного запиту на технічну підтримку
+/odata
+/TechInspectionRequests	POST	Створення запиту на технічну підтримку, отриманого від точки видачі
+/odata
+/TechInspectionRequests
+/{key}	PUT	Редагування запиту на технічну підтримку
+/odata
+/TechInspectionRequests
+/{key}	DELETE	Видалення запиту на технічну підтримку по її проведенню, скидання значень в комірці, яка «ініціювала» запит
+
+     2.3 Автентифікація
+
+     Додаток використовує JSON Web Token (JWT) для перевірки автентифікації користувача (див. додаток В). 
+     Параметри для генерації токенів записано в appsettings: 
+      1 "JwtSettings": {
+      2  	"ValidAudience": "http://localhost:4200",
+      3 	"ValidIssuer": "http://localhost:5000",
+      4 	"Secret": "2sGGZpRfREs0cNp4ZOkgsEl3AIwWr2b1A8ixGPB4XjAxcSbJDXfnYb5T9qaJSPb7",
+      5 	"TokenValidityInMinutes": 1,
+      6 	"RefreshTokenValidityInDays": 7
+      7 }
+     Спочатку користувач надсилає запис на авторизацію за допомогою автентифікаційного ключа (адреса електронної пошти та пароль). Потім сервер автентифікації створює JWT та токен для оновлення (refresh token) та відправляє їх користувачеві. Токен для оновлення – це вид токена, який використовується для продовження дії автентифікаційного сеансу користувача. JWT токен має обмежений строк дії, а токен для оновлення – довший термін. Коли JWT токен закінчує свій строк, на сервері за допомогою рефреш токен отримується новий JWT токен без необхідності повторно вводити логін та пароль. Це підвищує безпеку та покращує досвід користувача.
+     Коли користувач робить запит до API додатку, він додає до нього раніше отриманий JWT.
+     JWT складається з трьох частин: заголовок (header), корисні дані (claims) та підпис (signature). Заголовок JWT містить інформацію про те, як обчислювати підпис JWT. Корисні дані (claims) – це інформація про користувача, яка зберігається всередині токена. У системі сервер створює JWT (див. додаток Г) з інформацією про ідентифікатор користувача, адресу його електронної пошти, дату реєстрації в системі та ім’я:
+      1 var authClaims = new List<Claim>
+      2 {
+      3 	new(JwtClaims.Sub, user.Id.ToString()),
+      4 	new(JwtClaims.Email, user.Email!),
+      5	new(JwtClaims.RegisterDate, user.RegisterDate.ToString("O")),
+      6 	new(JwtClaims.Name, user.Name)
+      7}; 
+     Далі додається «підпис» з використанням алгоритму HMAC-SHA256. 
+      1 signingKey = new SymmetricSecurityKey (Encoding.UTF8.GetBytes (jwtSettings.Secret));
+      2 signingCredentials = new SigningCredentials (signingKey, SecurityAlgorithms.HmacSha256);
+     Для контролю доступу до контролерів використано атрибут [Authorize] (див. додаток Б) в базовому контролері OData. 
+     За кожним користувачем ведеться облік токенів (IssuedTokens): з коротким терміном дії та токенів для оновлення. Дані про токен з коротким терміном дії оновлюються, поки не закінчиться термін дії токену для оновлення. Далі користувачеві необхідно повторно виконати вхід до системи.
+     
+     2.4 Валідація на сервері
+     
+     Для валідації даних переданих в запитах від клієнтських частин системи в серверному застосунку було використано Fluent Validation. Це бібліотека для валідації даних в .NET-програмах, що надає можливість визначати правила валідації у декларативному стилі. Це дозволяє легко читати і зберігати код валідації. 
+     В застосунку було створено валідатори для основних моделей та для запитів на реєстрацію користувачів (див. додаток E). Розглянемо визначення деяких правил валідації для моделі запиту на реєстрацію користувача як менеджера організації:
+      01 RuleFor(c => c.Password)
+      02 .NotEmpty();
+      03 RuleFor(c => c.Name)
+      04 .NotEmpty()
+      05 .MinimumLength(3);
+      06 RuleFor(c => c.Role)
+      07 .Must(c => 
+      08  RolesAllowedForRegistration
+      09 .Contains(c.ToLower()))
+      10 .WithMessage("Registration role is invalid.");
+      11 RuleFor(c => c.Email)
+      12 .EmailAddress()
+      13 .MustAsync((e, _) => 
+      14  dbContext.Users
+      15 .AllAsync(u => u.Email != e))
+      16 .WithMessage("User with this email already exists.");
+     Створено клас RegisterCompanyRequestValidator, який успадковує AbstractValidator – цей базовий клас надає зручний спосіб визначати правила валідації моделі. Метод .RuleFor() використано для визначення правил валідації для полів об'єкта: у прикладі це Password, Name, Role, Email. Методи .Must() та .MustAsync() використано для визначення умов для валідації. В прикладі це: чи значення поля Role міститься в списку RolesAllowedForRegistration, чи вже існує користувач з такою електронною адресою Email в базі даних. Метод .WithMessage() використано для визначення повідомлення про помилку, яке буде повернуто, якщо правило валідації не виконується.
+     Якщо валідація пройде успішно, то запит на створення компанії буде оброблено.
+
+     2.5 Локалізація
+     
+     Завдання локалізації на стороні сервера в розроблюваній системі полягає в коректній роботі з датою та часом. Для цього відбиток часу робиться на сервері під час опрацювання запиту на створення чи оновлення даних. В системі немає потреби делегувати таку логіку на сторону клієнта. 
+     Серверні дані зберігаються в форматі UTC (координований всесвітній час), щоб уникнути проблем з часовими зонами, літнім та зимовим часом (див. додаток Д). На стороні клієнта при виведенні дані приводяться до належного вигляду – звичного формату дати та часу, правильного часу з точки зору користувача відповідно до локалі. 
+     Температурні дані зберігаються в базі даних у градусах Цельсія, на стороні клієнта відбувається перетворення за допомогою стандартної формули переведення до Фаренгейтів, якщо цього вимагають налаштування локалі.
+     Локалей наразі заплановано 2: en-US та uk-UA. 
+
+     2.6 Використання механізму Dependency Injection
+
+     Для передачі залежностей використано механізм Dependency Injection (див. додаток Ж). Приклад реалізації:
+      1 builder.Services.AddSingleton<IJwtTokenService, JwtTokenService>();
+      2 builder.Services.AddScoped<IAuthService, AuthService>();
+	У наведеному коді наведено два підходи. При використанні AddSingleton при першому запиті створюється один екземпляр сервісу який використовується протягом усього життєвого циклу додатка. При використанні AddScoped створюється новий екземпляр сервісу для кожного HTTP-запиту, який після виконання запиту видаляється.
+     Це дозволяє легко змінити залежності в разі потреби, налаштовувати час життя залежності та облегшувати тестування й розуміння коду. 
+     
+     2.7 Забезпечення безпеки даних
+     
+     Забезпечення безпеки даних у серверному застосунку включає:
+     - гешування кодів доступу до комірок та користувацьких паролів, збереження цих даних в базі даних у зашифрованому вигляді;
+     - використання ORM фреймворку Entity Framework для запобігання SQL ін'єкціям;
+     - упроваджені аутентифікація і авторизація користувачів за токеном JWT (JSON Web Token). Права доступу користувачів перевіряються перед доступом до конкретних ресурсів (перевіряється правомірність отримання даних користувачем у певній ролі з певного ендпоінта). Rожен користувач має доступ лише до необхідної для його роботи інформації;
+     - валідацію всіх вхідних даний та перевірку їх на відповідність очікуваному формату та допустимим значенням за допомогою Fluent validation.
+     
+     2.8 Адміністрування системи
+     
+     У системі передбачено два типи адміністрування (та, відповідно, дві користувацькі ролі для адміністраторів): системне та адміністрування з точки зору бізнес-логіки.
+     Системний адміністратор отримує доступ до управління даними системи та їхнім захистом (управління резервним копіюванням).
+     Адміністратор з точки зору бізнес логіки управляють наповненням системи (керують заявками на встановлення та прибирання точок видачі, отримують та розглядають заявки на проведення технічного огляду точок видачі), користувачами та їхніми правами як підписників системи En Route (блокування, розблокування), отримують статистику щодо використання компаніями системи.
+     
+
+     3 UML ДІАГРАМИ СИСТЕМИ
+     3.1 UML діаграма розгортання
+     
+     На рисунку 3.1 зображено UML діаграму розгортання. На ній зазначено, що сервер повинен містити всі бібліотеки серверної частини та 2 файли конфігурації. 
+     Має бути встановлено Internet Information Services (IIS) – веб-сервер Microsoft для операційних систем Windows. На сервері бази даних повинен бути MS SQL Server. 
+    
+     
+     3.2 UML діаграма прецедентів
+     
+     На рисунку 3.2 зображено UML діаграму прецедентів. На ній зображено 5 користувачів за ролями: постачальник їжі, менеджер компанії, замовник страви, адміністратор (для управління бізнес-логікою) та системний адміністратор. Для користувачів зображено впроваджений для них функціонал.
+
+     3.3 ER-модель даних
+     
+     На рисунку 1 було вказано створену для програмної системи ER-модель даних у нотації Crow's Foot.
+     
+     
+     На рисунку 3.3 можна побачити UML діаграму станів процесу встановлення розумного холодильника в компанії, яка використовує систему Smartfood. 
+     
+     
+     Встановлення холодильника відбувається після схвалення адміністратором заявки на встановлення холодильника від менеджера офісу.
+
+
+ВИСНОВКИ
+     
+     У ході виконання лабораторної роботи було отримано навички з розробки серверних застосунків для великих проєктів.
+     Посилання на файли програмного коду: https://github.com/NureBerestPolina/apz-pzpi-21-3-berest-polina
+     Посилання на відео з демонстрацією роботи застосунку: https://youtu.be/rM0jnzQGCWo
+      
+ДОДАТОК А
+     ApplicationDbContext.cs
+
+      01 using EnRoute.Domain.Models;
+      02 using Microsoft.AspNetCore.Identity;
+      03 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+      04 using Microsoft.EntityFrameworkCore;
+      05 using System.Reflection.Emit;
+      06 
+      07 namespace EnRoute.Domain
+      08 {
+      09     public class ApplicationDbContext : IdentityDbContext<User, IdentityRole<Guid>, Guid>
+      10    {
+      11         public DbSet<Category> Categories { get; set; }
+      12         public DbSet<Producer> Producers { get; set; }
+      13         public DbSet<Good> Goods { get; set; }
+      14         public DbSet<Organization> Organizations { get; 
+set; }
+      15         public DbSet<IssuedToken> IssuedTokens { get; set; }
+      16         public DbSet<PickupCounter> PickupCounters { get; set; }
+      17         public DbSet<Cell> Cells { get; set; }
+      18         public DbSet<CounterInstallationRequest> CounterInstallationRequests { get; set; }
+      19         public DbSet<CounterDeinstallationRequest> CounterDeinstallationRequests { get; set; }
+      20         public DbSet<TechInspectionRequest> TechInspectionRequests { get; set; }
+      21         public DbSet<Order> Orders { get; set; }
+      22         public DbSet<OrderItem> OrderItems { get; set; }
+      23 
+      24         public ApplicationDbContext(DbContextOptions <ApplicationDbContext> options) : base(options)
+      25         {
+      26         }
+      27 
+      28         protected override void OnModelCreating(ModelBuilder builder)
+      29         {
+      30             base.OnModelCreating(builder);
+      31 
+      32             builder.Entity<User>()
+      33                    .HasIndex(c => c.Email).IsUnique();
+      34 
+      35             builder.Entity<Order>()
+      36                    .HasOne(o => o.Customer).WithMany()
+      37                    .HasForeignKey(o => o.CustomerId)
+      38                    .OnDelete(DeleteBehavior.NoAction);
+      39 
+      40             builder.Entity<OrderItem>()
+      41                    .HasOne(o => o.Order).WithMany(o => o.Items)
+      42                    .HasForeignKey(o => o.OrderId)
+      43                    .OnDelete(DeleteBehavior.NoAction);
+      44 
+      45             builder.Entity<Cell>()
+      46                    .HasOne(c => c.Counter).WithMany(p => p.Cells)
+      47                    .HasForeignKey(c => c.CounterId)
+      48                    .OnDelete(DeleteBehavior.Cascade);
+      49         }
+      50     }
+      51 }
+      
+ 
+
+     ДОДАТОК Б
+     ODataControllerBase.cs
+
+      01: using EnRoute.Domain;
+      02: using EnRoute.Domain.Utils;
+      03: using EnRoute.Domain.Models.Interfaces;
+      04: using Microsoft.AspNetCore.Authorization;
+      05: using Microsoft.AspNetCore.Mvc;
+      06: using Microsoft.AspNetCore.OData.Formatter;
+      07: using Microsoft.AspNetCore.OData.Query;
+      08: using Microsoft.AspNetCore.OData.Routing.Controllers;
+      09: using Microsoft.EntityFrameworkCore;
+      10: 
+      11: namespace EnRoute.API.Controllers
+      12: {
+      13:     [Authorize]
+      14:     public class ODataControllerBase<T> : ODataController where T : class, IODataEntity
+      15:     {
+      16:         protected readonly ApplicationDbContext AppDbContext;
+      17:         protected readonly DbSet<T> CurrentDbSet;
+      18: 
+      19:         public ODataControllerBase(ApplicationDbContext appDbContext)
+      20:         {
+      21:             AppDbContext = appDbContext;
+      22:             CurrentDbSet = appDbContext.Set<T>();
+      23:         }
+      24: 
+      25:         [EnableQuery]
+      26:         public virtual IActionResult Get()
+      27:         {
+      28:             return Ok(CurrentDbSet);
+      29:         }
+      30: 
+      31:         [EnableQuery]
+      32:         public virtual async Task<IActionResult> Get(Guid key)
+      33:         {
+      34:             var item = await CurrentDbSet.FirstOrDefaultAsync(e => e.Id == key);
+      35:             return item is null ? NotFound() : (IActionResult)Ok(item);
+      36:         }
+      37: 
+      38:         [EnableQuery]
+      39:         public virtual async Task<IActionResult> Post([FromBody] T entity)
+      40:         {
+      41:             var allErrors = ModelState.Values.SelectMany(v => v.Errors).ToArray();
+      42:             if (allErrors.Any()) 
+      43:                 return BadRequest(string.Join(", ", allErrors.Select(err => err.Exception)));
+      44: 
+      45:             CurrentDbSet.Add(entity);
+      46:             await AppDbContext.SaveChangesAsync();
+      47:             return Created(entity);
+      48:         }
+      49: 
+      50:         public virtual async Task<IActionResult> Put([FromODataUri] Guid key, [FromBody] T entity)
+      51:         {
+      52:             var dbEntity = await CurrentDbSet.FindAsync(key);
+      53:             if (dbEntity is null) 
+      54:                 return NotFound();
+      55: 
+      56:             entity.Id = key;
+      57:             AppDbContext.DetachLocal(entity, key);
+      58:             CurrentDbSet.Update(entity);
+      59:             await AppDbContext.SaveChangesAsync();
+      60:             return Updated(entity);
+      61:         }
+      62: 
+      63:         public virtual async Task<IActionResult> Delete([FromRoute] Guid key)
+      64:         {
+      65:             var entityFromStorage = await CurrentDbSet.FirstOrDefaultAsync(l => l.Id == key);
+      66:             if (entityFromStorage is null) 
+      67:                 return NotFound();
+      68:                 
+      69:             CurrentDbSet.Remove(entityFromStorage);
+      70:             await AppDbContext.SaveChangesAsync();
+      71:             return NoContent();
+      72:         }
+      73:     }
+      74: }
+
+
+     ДОДАТОК В
+     AuthService.cs
+     
+      001 using EnRoute.Common.Configuration;
+      002 using EnRoute.Common.Constants;
+      003 using EnRoute.Domain;
+      004 using EnRoute.Domain.Models;
+      005 using EnRoute.Infrastructure.Commands;
+      006 using EnRoute.Infrastructure.Constants;
+      007 using EnRoute.Infrastructure.Extentions;
+      008 using EnRoute.Infrastructure.Services.Interfaces;
+      009 using EnRoute.Infrastructure.Strategies;
+      010 using Microsoft.AspNetCore.Identity;
+      011 using Microsoft.EntityFrameworkCore;
+      012 using System.Security.Authentication;
+      013 using System.Security.Claims;
+      014 
+      015 namespace EnRoute.Infrastructure.Services
+      016 {
+      017     /// <summary>
+      018     /// Service handling authentication operations.
+      019     /// </summary>
+      020     public class AuthService : IAuthService
+      021     {
+      022         private readonly ApplicationDbContext dbContext;
+      023         private readonly UserManager<User> userManager;
+      024         private readonly JwtSettings jwtSettings;
+      025         private readonly IJwtTokenService jwtTokenService;
+      026    	 private readonly IRoleStrategyFactory roleStrategyFactory;
+      027
+      028         public AuthService(
+      029         ApplicationDbContext dbContext, 
+      030         UserManager<User> userManager, 
+      031         JwtSettings jwtSettings, 
+      032         IJwtTokenService jwtTokenService, 
+      033         IRoleStrategyFactory roleStrategyFactory
+      034         )
+      035         {
+      036             this.dbContext = dbContext;
+      037             this.userManager = userManager;
+      038             this.jwtSettings = jwtSettings;
+      039             this.jwtTokenService = jwtTokenService;
+      040             this.roleStrategyFactory = roleStrategyFactory;
+      041         }
+      042 
+      043         /// <summary>
+      044         /// Generates a token for the given user.
+      045         /// </summary>
+      046         /// <param name="user">User entity for which the token is generated.</param>
+      047         /// <returns>A tuple containing the generated token and its refresh token.</returns>
+      048         public async Task<(string Token, string RefreshToken)> GenerateTokenForUserAsync(User user)
+      049         {
+      050             var authClaims = new List<Claim>
+      051         {
+      052             new(JwtClaims.Sub, user.Id.ToString()),
+      053             new(JwtClaims.Email, user.Email!),
+      054             new(JwtClaims.RegisterDate, user.RegisterDate.ToString("O")),
+      055             new(JwtClaims.Name, user.Name)
+      056         };
+      057 
+      058             var userClaims = await userManager.GetClaimsAsync(user);
+      059             var roleClaims = userClaims.Where(c => c.Type == ClaimTypes.Role).Select(c => c.Value).ToArray();
+      060 
+      061             authClaims.Add(new Claim(JwtClaims.Roles, string.Join<string>(",", roleClaims)));
+      062 
+      063             var token = jwtTokenService .CreateToken(authClaims);
+      064             var refreshToken = jwtTokenService .GenerateRefreshToken();
+      065 
+      066 
+      067             var serializedToken = token.SerializeToString();
+      068 
+      069             var issuedToken = new IssuedToken
+      070             {
+      071                 User = user,
+      072                 Token = serializedToken,
+      073                 RefreshToken = refreshToken,
+      074                 RefreshTokenExpirationTime = DateTime.UtcNow.AddDays(jwtSettings.RefreshTokenValidityInDays)
+      075             };
+      076 
+      077             dbContext.IssuedTokens.Add(issuedToken);
+      078             await dbContext.SaveChangesAsync();
+      079 
+      080             return (serializedToken, refreshToken);
+      081         }
+      082 
+      083         /// <summary>
+      084         /// Registers a new user with the provided registration information.
+      085         /// </summary>
+      086         /// <param name="command">Registration command containing user information.</param>
+      087         /// <returns>The newly registered user.</returns>
+      088         public async Task<User> RegisterUserAsync(RegisterCommand command)
+      089         {
+      090             var user = new User()
+      091             {
+      092                 Email = command.Email,
+      093                 UserName = command.Email,
+      094                 Name = command.Name
+      095             };
+      096 
+      097             var result = await userManager.CreateAsync(user, command.Password);
+      098 
+      099             if (!result.Succeeded)
+      100             {
+      101                 throw new Exception($"Unexpected error during user registration: {string.Join(", ", result.Errors)}.");
+      102             }
+      103 
+      104             var createdUser = await userManager.FindByEmailAsync(user.Email);
+      105             if (createdUser is null)
+      106             {
+      107                 throw new Exception("Registered user not found.");
+      108             }
+      109 
+      110             try
+      111             {
+      112                 var claimAssignmentResult = await userManager.AddClaimAsync(createdUser, new Claim(ClaimTypes.Role, command.Role.ToLower()));
+      113 
+      114                 if (!claimAssignmentResult.Succeeded)
+      115                 {
+      116                     throw new ArgumentException($"Unexpected error during role claim assignment: {string.Join(", ", claimAssignmentResult.Errors)}.", nameof(command.Role));
+      117                 }
+      118 
+      119                 var strategy = roleStrategyFactory.CreateStrategy(command.Role.ToLower());
+      120                 await strategy.ExecuteRoleSpecificActionAsync(createdUser, command, dbContext);
+      121                 await dbContext.SaveChangesAsync();
+      122             }
+      123             catch (Exception)
+      124             {
+      125                 await userManager.DeleteAsync(createdUser);
+      126                 throw;
+      127             }
+      128 
+      129             return createdUser;
+      130         }
+      131 
+      132         /// <summary>
+      133         /// Refreshes the provided JWT token using the refresh token.
+      134         /// </summary>
+      135         /// <param name="token">Expired JWT token.</param>
+      136         /// <param name="refreshToken">Refresh token.</param>
+      137         /// <returns>A tuple containing the new token and refresh token.</returns>
+      138         public async Task<(string Token, string RefreshToken)> RefreshToken(string token, string refreshToken)
+      139         {
+      140             var principal = this.jwtTokenService.GetPrincipalFromExpiredToken(token);
+      141             if (principal == null)
+      142             {
+      143                 throw new AuthenticationException("Invalid access token or refresh token");
+      144             }
+      145 
+      146             var userId = Guid.Parse(principal.FindFirst(c => c.Type == ClaimTypes.NameIdentifier)!.Value);
+      147 
+      148             var user = await dbContext.Users
+      149                 .Include(c => c.IssuedTokens)
+      150                 .Where(u => u.Id == userId &&
+      151                             u.IssuedTokens.Any(t =>
+      152                                 t.RefreshToken == refreshToken && DateTime.UtcNow <= t.RefreshTokenExpirationTime))
+      153                 .FirstOrDefaultAsync();
+      154 
+      155             if (user == null)
+      156             {
+      157                 throw new AuthenticationException("Invalid access token or refresh token");
+      158             }
+      159 
+      160             var currentToken = user.IssuedTokens.First(c => c.RefreshToken == refreshToken);
+      161             dbContext.IssuedTokens.Remove(currentToken);
+      162 
+      163             return await GenerateTokenForUserAsync(user);
+      164         }
+      165     }
+      166 }
+     
+
+     ДОДАТОК Г
+     JwtTokenService.cs
+      
+      01 using EnRoute.Common.Configuration;
+      02 using EnRoute.Infrastructure.Services.Interfaces;
+      03 using Microsoft.IdentityModel.Tokens;
+      04 using System.IdentityModel.Tokens.Jwt;
+      05 using System.Security.Claims;
+      06 using System.Security.Cryptography;
+      07 using System.Text;
+      08 
+      09 namespace EnRoute.Infrastructure.Services
+      10 {
+      11     public class JwtTokenService : IJwtTokenService
+      12     {
+      13         private readonly JwtSettings jwtSettings;
+      14         private readonly SymmetricSecurityKey signingKey;
+      15         private readonly SigningCredentials signingCredentials;
+      16 
+      17         public JwtTokenService(JwtSettings jwtSettings)
+      18         {
+      19             this.jwtSettings = jwtSettings;
+      20 
+      21             signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings.Secret));
+      22             signingCredentials = new SigningCredentials(signingKey, SecurityAlgorithms.HmacSha256);
+      23         }
+      24 
+      25         public JwtSecurityToken CreateToken(IEnumerable<Claim> authClaims)
+      26         {
+      27             var token = new JwtSecurityToken(
+      28                 issuer: jwtSettings.ValidIssuer,
+      29                 audience: jwtSettings.ValidAudience,
+      30                 expires: DateTime.UtcNow.AddMinutes( jwtSettings.TokenValidityInMinutes),
+      31                 claims: authClaims,
+      32                 signingCredentials: signingCredentials
+      33             );
+      34 
+      35             return token;
+      36         }
+      37 
+      38         public string GenerateRefreshToken()
+      39         {
+      40             var randomNumber = new byte[64];
+      41             using var rng = RandomNumberGenerator.Create();
+      42             rng.GetBytes(randomNumber);
+      43             return Convert.ToBase64String(randomNumber);
+      44         }
+      45 
+      46         public ClaimsPrincipal? GetPrincipalFromExpiredToken(string? token)
+      47         {
+      48             var tokenValidationParameters = new TokenValidationParameters
+      49             {
+      50                 ValidateAudience = false,
+      51                 ValidateIssuer = false,
+      52                 ValidateIssuerSigningKey = true,
+      53                 IssuerSigningKey = signingKey,
+      54                 ValidateLifetime = false
+      55             };
+      56 
+      57             var tokenHandler = new JwtSecurityTokenHandler();
+      58 
+      59             var principal = tokenHandler.ValidateToken(token, 
+      60                                 tokenValidationParameters, 
+      61                                 out SecurityToken securityToken);
+      62              if (securityToken is not JwtSecurityToken jwtSecurityToken 
+      63              || !jwtSecurityToken.Header.Alg.Equals( SecurityAlgorithms.HmacSha256, StringComparison .InvariantCultureIgnoreCase))
+      64                  throw new SecurityTokenException("Invalid token");
+      65              return principal;
+      66         }
+      67     }
+      68 }
+      
+ДОДАТОК Д
+     CounterInstallationRequest.cs
+
+      01: using System.Collections.Generic;
+      02: using System.Linq;
+      03: using System.Text;
+      04: using System.Threading.Tasks;
+      05: 
+      06: namespace EnRoute.Domain.Models
+      07: {
+      08:     public class CounterInstallationRequest : IODataEntity
+      09:     {
+      10:         public Guid Id { get; set; }
+      11:         public string Address { get; set; } = string.Empty;
+      12:         public string PlacementDescription { get; set; } = string.Empty;
+      13:         public int CellCount { get; set; }
+      14:         public int CellWithTempControlCount { get; set; }
+      15:         public Guid OrganizationId { get; set; }
+      16:         public Organization Organization { get; set; }
+      17:         public DateTime RequestedTime { get; set; } = DateTime.UtcNow;
+      18:         public DateTime? FulfilledTime { get; set; }
+      19:         public RequestStatus RequestStatus { get; set; } = RequestStatus.Unseen;
+      20:     }
+      21: }
+     
+
+     ДОДАТОК Е
+     RegisterCompanyRequestValidator.cs
+     
+      01 using EnRoute.Common.Constants;
+      02 using EnRoute.Domain;
+      03 using FluentValidation;
+      04 using Microsoft.EntityFrameworkCore;
+      05 
+      06 namespace EnRoute.API.Contracts.Auth.Requests;
+      07 
+      08 public class RegisterCompanyRequestValidator : AbstractValidator<RegisterCompanyRequest>
+      09 {
+      10     private static readonly IEnumerable<string> RolesAllowedForRegistration =
+      11         UserRoles.AvailableRoles.Except(new[] { UserRoles.Administrator, UserRoles.Customer }).ToArray();
+      12 
+      13     public RegisterCompanyRequestValidator(ApplicationDbContext dbContext)
+      14     {
+      15         RuleFor(c => c.Password).NotEmpty();
+      16         RuleFor(c => c.Name).NotEmpty().MinimumLength(3);
+      17         RuleFor(c => c.Role)
+      18             .Must(c => RolesAllowedForRegistration
+      19             .Contains(c.ToLower()))
+      20             .WithMessage("Registration role is invalid.");
+      21 
+      22         RuleFor(c => c.Email)
+      23             .EmailAddress().WithMessage("Email address is not valid")
+      24             .MustAsync((e, _) => dbContext.Users
+      25             .AllAsync(u => u.Email != e))
+      26             .WithMessage("User with this email already exists.");
+      27 
+      28         RuleFor(c => c.Description).NotEmpty().MinimumLength(3);
+      29         RuleFor(c => c.OrganizationName).NotEmpty().MinimumLength(3);
+      30         RuleFor(c => c.Role)
+      31             .Must(c => c.ToLower() != UserRoles.Customer)
+      32             .WithMessage("Registration role is invalid.");
+      33     }
+      34 }
+
+     ДОДАТОК Ж
+     Program.cs
+
+      001 using Microsoft.AspNetCore.Identity;
+      002 using Microsoft.OpenApi.Models;
+      003 using System.Text.Json.Serialization;
+      004 using Microsoft.AspNetCore.Authentication.JwtBearer;
+      005 using Microsoft.IdentityModel.Tokens;
+      006 using System.Text;
+      007 using FluentValidation;
+      008 using SharpGrip.FluentValidation.AutoValidation .Mvc.Extensions;
+      009 using Microsoft.OData.Edm;
+      010 using Microsoft.OData.ModelBuilder;
+      011 using Microsoft.AspNetCore.OData;
+      012 using EnRoute.Domain.Models;
+      013 using EnRoute.Domain;
+      014 using EnRoute.API.Middleware;
+      015 using Microsoft.EntityFrameworkCore;
+      016 using EnRoute.Common.Configuration;
+      017 using EnRoute.Infrastructure.Services.Interfaces;
+      018 using EnRoute.Infrastructure.Services;
+      019 using EnRoute.API.Contracts.Auth.Requests;
+      020 using EnRoute.API.Contracts.DomainValidators;
+      021 
+      022 var builder = WebApplication.CreateBuilder(args);
+      023 
+      024 builder.Configuration
+      025     .AddJsonFile("appsettings.json", optional: false, reloadOnсhange: true)
+      026     .AddUserSecrets(typeof(Program).Assembly);
+      027
+      028 JwtSettings jwtSettings = builder.Configuration
+      029                                  .GetSection("JwtSettings").Get<JwtSettings>() ??
+      030                                  throw new Exception("JWT configuration is missing");
+      031 
+      032 AdminSettings adminSettings = builder.Configuration
+      033             				 GetSection("AdminSettings") .Get<AdminSettings>() ??
+      034		throw new Exception("Admin configuration is missing");
+      035 
+      036 SysadminSettings sysadminSettings = builder.Configuration
+      037                                            .GetSection("SysadminSettings").Get<SysadminSettings>() ??
+      038                                            throw new Exception("Sustem Administrator configuration is missing");
+      039 
+      040 CellConnectionSettings cellConnectionSettings = builder.Configuration
+      041                                                        .GetSection("CellConnectionSettings").Get<CellConnectionSettings>() ??
+      042		throw new Exception("IoT devices (Counter Cells) connection configuration is missing");
+      043 
+      044 builder.Services.AddSingleton(jwtSettings);
+      045 builder.Services.AddSingleton(adminSettings);
+      046 builder.Services.AddSingleton(sysadminSettings);
+      047 builder.Services.AddSingleton(cellConnectionSettings);
+      048 builder.Services.AddSingleton<IJwtTokenService, JwtTokenService>();
+      049 builder.Services.AddScoped<IAuthService, AuthService>();
+      050 builder.Services.AddScoped<ICounterService, CounterService>();
+      051 builder.Services.AddScoped<IStatisticsService, StatisticsService>();
+      052 builder.Services.AddScoped<IDeliveryService, DeliveryService>();
+      053 
+      054 
+      055 builder.Services.AddHttpClient();
+      056 
+      057 builder.Services.AddDbContext<ApplicationDbContext>(options =>
+      058     options.UseSqlServer(builder.Configuration .GetConnectionString("MsSql"),
+      059         o => o.MigrationsAssembly (typeof(ApplicationDbContext).Assembly.FullName)));
+      060 
+      061 builder.Services.AddIdentity<User, IdentityRole<Guid>>(o =>
+      062 {
+      063     o.Password.RequireDigit = false;
+      064     o.Password.RequireLowercase = false;
+      065     o.Password.RequireNonAlphanumeric = false;
+      066     o.Password.RequireUppercase = false;
+      067     o.Password.RequiredLength = 6;
+      068     o.Password.RequiredUniqueChars = 0;
+      069 })
+      070     .AddEntityFrameworkStores<ApplicationDbContext>()
+      071     .AddDefaultTokenProviders();
+      072 
+      073 builder.Services.AddAuthentication(options =>
+      074 {
+      075     options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+      076     options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+      077     options.DefaultScheme = JwtBearerDefaults.AuthenticationScheme;
+      078 })
+      079     .AddJwtBearer(options =>
+      080     {
+      081         options.SaveToken = true;
+      082         options.RequireHttpsMetadata = false;
+      083 
+      084         options.TokenValidationParameters = new TokenValidationParameters()
+      085         {
+      086             ValidateIssuer = true,
+      087             ValidateAudience = true,
+      088             ValidateLifetime = true,
+      089             ValidateIssuerSigningKey = true,
+      090             ClockSkew = TimeSpan.Zero,
+      091 
+      092             ValidAudience = jwtSettings.ValidAudience,
+      093             ValidIssuer = jwtSettings.ValidIssuer,
+      094             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings.Secret))
+      095         };
+      096     });
+      097 
+      098 const string CORS_POLICY = "CorsPolicy";
+      099 builder.Services.AddCors(options =>
+      100 {
+      101     options.AddPolicy(name: CORS_POLICY,
+      102         corsPolicyBuilder =>
+      103         {
+      104             corsPolicyBuilder.AllowAnyOrigin();
+      105             corsPolicyBuilder.AllowAnyMethod();
+      106             corsPolicyBuilder.AllowAnyHeader();
+      107         });
+      108 });
+      109 
+      110 builder.Services.AddControllers(c =>
+      111 {
+      112     c.ModelValidatorProviders.Clear();
+      113     c.ValidateComplexTypesIfChildValidationFails = false;
+      114 }).AddOData(opt =>
+      115 {
+      116     opt.AddRouteComponents("odata", GetEdmModel());
+      117 }).AddJsonOptions(options =>
+      118 {
+      119     options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
+      120     options.JsonSerializerOptions.WriteIndented = true;
+      121 });
+      122 
+      123 builder.Services.AddAutoMapper(typeof(EnRoute.API.MappingProfile).Assembly);
+      124 
+      125 builder.Services.AddValidatorsFromAssemblyContaining <LoginRequestValidator>();
+      126 builder.Services.AddValidatorsFromAssemblyContaining <TechInspectionRequestValidator>();
+      127 builder.Services.AddFluentValidationAutoValidation();
+      128 
+      129 builder.Services.AddEndpointsApiExplorer();
+      130 builder.Services.AddSwaggerGen(c =>
+      131 {
+      132     c.SwaggerDoc("v1", new OpenApiInfo { Title = "My API", Version = "v1" });
+      133     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+      134     {
+      135         Description = @"JWT Authorization header using the Bearer scheme. \r\n\r\n 
+      136                       Enter 'Bearer' [space] and then your token in the text input below.
+      137                       \r\n\r\nExample: 'Bearer 12345abcdef'",
+      138         Name = "Authorization",
+      139         In = ParameterLocation.Header,
+      140         Type = SecuritySchemeType.ApiKey,
+      141         Scheme = "Bearer"
+      142     });
+      143 
+      144     c.AddSecurityRequirement(new OpenApiSecurityRequirement()
+      145     {
+      146         {
+      147             new OpenApiSecurityScheme
+      148             {
+      149                 Reference = new OpenApiReference
+      150                 {
+      151                     Type = ReferenceType.SecurityScheme,
+      152                     Id = "Bearer"
+      153                 },
+      154                 Scheme = "oauth2",
+      155                 Name = "Bearer",
+      156                 In = ParameterLocation.Header
+      157 
+      158             },
+      159             new List<string>()
+      160         }
+      161     });
+      162 });
+      163 
+      164 builder.Services.AddHostedService <AdminInitializerHostedService>();
+      165 builder.Services.AddHostedService <SysadminInitializerHostedService>();
+      166 
+      167 var app = builder.Build();
+      168 
+      169 if (app.Environment.IsDevelopment())
+      170 {
+      171     app.UseSwagger();
+      172     app.UseSwaggerUI();
+      173 }
+      174 
+      175 app.UseCors(CORS_POLICY);
+      176 
+      177 app.UseAuthentication();
+      178 app.UseAuthorization();
+      179 
+      180 app.UseExceptionHandlerMiddleware();
+      181 
+      182 app.MapControllers();
+      183 
+      184 app.Run();
+      185 
+      186 
+      187 static IEdmModel GetEdmModel()
+      188 {
+      189     var builder = new ODataConventionModelBuilder();
+      190     builder.EntitySet<User>("Users").EntityType.Count()
+      191            .Filter().Expand().Select();
+      192     builder.EntitySet<Organization> ("Organizations").EntityType.Count()
+      193            .Filter().Expand().Select();
+      194     builder.EntitySet<Order>("Orders").EntityType.Count()
+      195            .Filter().Expand().Select();
+      196     builder.EntitySet<OrderItem>("OrderItems") .EntityType.Count()
+      197            .Filter().Expand().Select();
+      198     builder.EntitySet<Good>("Goods").EntityType.Count()
+      199            .Filter().Expand().Select();
+      200     builder.EntitySet<Producer>("Producers") .EntityType.Count()
+      201            .Filter().Expand().Select();
+      202     builder.EntitySet<Category>("Categories") .EntityType.Count()
+      203            .Filter().Expand().Select();
+      204     builder.EntitySet<TechInspectionRequest> ("TechInspectionRequests").EntityType.Count()
+      205            .Filter().Expand().Select();
+      206     builder.EntitySet<PickupCounter>("PickupCounters") .EntityType.Count()
+      207            .Filter().Expand().Select();
+      208     builder.EntitySet<CounterInstallationRequest> ("CounterInstallationRequests").EntityType.Count()
+      209            .Filter().Expand().Select();
+      210     builder.EntitySet<CounterDeinstallationRequest> ("CounterDeinstallationRequests").EntityType.Count()
+      211            .Filter().Expand().Select();
+      212 
+      213     builder.EnableLowerCamelCase();
+      214     return builder.GetEdmModel();
+      215 }
+
+     
+     
+     
+     
