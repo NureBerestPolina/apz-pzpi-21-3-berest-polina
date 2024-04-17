@@ -37,7 +37,7 @@ namespace PickupCounterIoT.Services
         }
 
         private async Task UpdateTemperatureAsync(object state)
-        {
+         {
             double temperature = GetTemperature();
 
             if (temperature > settings.MaxCellTempC ||

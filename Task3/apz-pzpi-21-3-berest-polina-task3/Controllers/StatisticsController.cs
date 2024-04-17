@@ -93,8 +93,7 @@ namespace PickupCounterIoT.Controllers
         {
             using (BinaryWriter writer = new BinaryWriter(System.IO.File.Open(filePath, FileMode.Create)))
             {
-                writer.Write(statistic.TopGoodId.ToByteArray()); // Сериализация Guid в массив байтов
-                writer.Write(statistic.MostPolpularCategory);
+                writer.Write(statistic.TopGoodId.ToByteArray()); 
                 writer.Write(statistic.TotalRevenue);
             }
         }
@@ -104,7 +103,7 @@ namespace PickupCounterIoT.Controllers
             Statistic stat = new Statistic();
             using (BinaryReader reader = new BinaryReader(System.IO.File.Open(filePath, FileMode.Open)))
             {
-                byte[] idBytes = reader.ReadBytes(16); // Чтение 16 байт для Guid
+                byte[] idBytes = reader.ReadBytes(16); 
                 stat.TopGoodId = new Guid(idBytes);
                 stat.MostPolpularCategory = reader.ReadString();
                 stat.TotalRevenue = reader.ReadDecimal();

@@ -1,0 +1,618 @@
+МЕТА РОБОТИ
+     
+     Метою виконання лабораторної роботи є набуття навичок із розробки програмного забезпечення для «розумних» пристроїв, як частини великих проєктів, зокрема для розроблюваної програмної системи для автоматизації логістики інтернет-шопінгу для малих та середніх бізнесів “En Route”»
+     
+     
+     1 ОПИС АРХІТЕКТУРИ СИСТЕМИ
+     1.1 Опис обраних технологій
+
+     Для розробки програмного забезпечення для «розумного» пристрою «Розумна точка видачі інтернет-замовлень» було обрано технологію .NET Core. За основу пристрою, для якого створюємо програмне забезпечення, взято Raspberry Pi.
+     Raspberry Pi зазвичай використовується для створення малих, потужних комп'ютерів, і його можна використовувати для розгортання та запуску веб-додатків. Операційною системою для Raspberry Pi є Linux.
+     ASP.NET Core – це фреймворк для розробки веб-додатків, який підтримує кросплатформенність – його можна використовувати на операційній системі Linux. 
+
+     1.2 Структура компонентів
+
+     Програмне забезпечення для «розумної» точки видачі складається з двох основних частин – для контролю стану пристрою (на основі даних від комірок) та для обчислення статистичних даних щодо наповнення та замовлень, отриманих через комірки точки видачі. Результати обчислень серіалізуються та записуються у файлове сховище. За користувацьким запитом дані через серверну частину повертаються на веб-клієнт. 
+     	Розумний пристрій самостійно контролює свій стан відповідно до заданих при запуску параметрів – діапазону нормальних температур всередині комірок (контролюється для комірок з підтримкою особливого температурного режиму) та кількості відкривань дверцят (забраних замовлень) з останнього технічного огляду. Для цього в проєкті створено сервіс контролю температури, який щопівгодини імітує зчитування з датчиків всередині комірок значення температури, звіряє з допустимим та в разі невідповідності якогось з отриманих показників нормі формує запит на технічну підтримку; та контролер запитів на технічний огляд, який відповідає за зчитування та збереження даних щодо відкриття комірок (у разі перевищення допустимого значення формується запит на технічну підтримку), формує та надсилає запити на серверний застосунок, отримує відповіді від сервера стосовно проведення огляду та оновлює (скидає) значення в комірці.
+     	Пристрій веде облік замовлень, забраних із комірок, обчислює та зберігає статистику продажів, яку надає за запитом адміністратора. Для цього створено окремий контролер з необхідними обчисленнями та методами доступу.
+     	У проєкті наявні файли моделей, які використовуються при роботі програмного забезпечення: запита на підтримку, статистики та замовлення.
+     	Збережено також файли .json для локалізації застосунку: англійської та української.
+     	Запуск сервісів та контролерів, адміністрування та налаштування відбувається в головному файлі програми (Program.cs). 
+
+
+     2 ОПИС ІНЖЕНЕРНИХ РІШЕНЬ
+     2.1 Формування запитів
+     
+     Програмне забезпечення для «розумної» точки видачі є повнозначною частиною складної системи. 
+     Застосунок самостійно контролює стан пристрою, опрацьовуючи дані з комірок (див. додаток В), веде облік статистики (див. додаток Г). 
+     Серверній частині пристрій надсилає сформовані запити на технічну підтримку: із причин критичної температури (див. додаток Д) або перевищення кількості відкриття дверцят комірки. 
+     На клієнтський запит програма  надсилає статистичні дані стосовно виручки, товарів-лідерів продажу та найпопулярніших категорій товарів серед виданих замовлень. 
+     Від серверної частини застосунок отримує замовлення, сповіщення про необхідність видачі замовлення та команду на скидання значень до нормальних після технічного огляду.
+     Обмін інформацією реалізовано за допомогою HttpClient, який приймає базову адресу сервера:
+      01 private async void SendTechInspectionRequest(int currentCount)
+      02 {
+      03     var client = httpClientFactory.CreateClient();
+      04     var baseUri = new Uri(configuration.GetValue<string> ("ServerUrl"));
+      05     client.Timeout = TimeSpan.FromMinutes(5);
+      06 
+      07     var response = await client.PostAsJsonAsync(new Uri (baseUri, "odata/TechInspectionRequests"), new TechInspectionRequest
+      08     {
+      09         Temperature = new TemperatureService (httpClientFactory, settings, configuration).GetTemperature(),
+      10         OpensCount = currentCount
+      11     });
+      12 }
+     Запити від пристрою містять його унікальний ідентифікатор, який вводиться при налаштуванні пристрою (див. додаток А).
+     URI пристрою в системі задається адміністратором при наданні дозволу на  встановлення холодильника.
+     
+     2.2 Адміністрування пристрою
+     
+     Налаштування програмного забезпечення відбувається при його запуску (див. додаток А). Процес налаштування може відбуватися обраною користувачем мовою, уведення валідується. 
+     Під час налаштування необхідно задати параметри для відстеження пристроєм свого стану та унікальний ідентифікатор пристрою для формування запитів до сервера:
+      1 public record CounterSettings(string id, Locale locale, int MaxDoorOpenCount, double MinCellTempC, double MaxCellTempC);
+     
+     2.3 Локалізація	
+     
+     Програмне забезпечення має механізм локалізації (див. додаток А) для адаптації інтерфейсу користувача до обраної локалі (українська або англійська). 
+     Функція GetUserLocale() запитує користувача про обрану мову.    Функція LoadLocalizationResource(string locale) завантажує ресурси локалізації з файлу JSON відповідно до вибраної мови користувача. 
+     Для завантаження ресурсів локалізації виконано обробку винятків із виведенням відповідних до помилки повідомлень:
+      01     try
+      02     {
+      03         string json = File.ReadAllText(localizationFileName);
+      04         resource = JsonSerializer .Deserialize<Dictionary<string, string>>(json);
+      05     }
+      06     catch (FileNotFoundException)
+      07     {
+      08         Console.WriteLine($"Localization file '{localizationFileName}' not found. Using default locale.");
+      09         string defaultLocalizationFileName = "English.json";
+      10         string json = File .ReadAllText(defaultLocalizationFileName);
+      11         resource = JsonSerializer .Deserialize<Dictionary<string, string>>(json);
+      12     }
+      13     catch (Exception ex)
+      14     {
+      15         Console.WriteLine($"Error loading localization: {ex.Message}");
+      16     }
+     Якщо файл локалізації не знайдено, використовується файл локалізації за замовчуванням («English.json»).
+     Встановлення певної локалі також передбачає зміну одиниць виміру на зручні для користувача. Для української локалі температура зчитується в градусах Цельсія, для англійської – у Фаренгейтах. Серверний застосунок отримує дані в градусах Цельсія, переведення відбувається перед відправкою запиту.
+     
+     2.4 Обчислення статистики
+     
+     Програмне забезпечення формує статистику замовлень, отриманих через комірки точки видачі (див. додаток Г). Дані оновлюються після кожного відкриття комірки на видачу замовлення. 
+     Обчислюється виручка, підбивається підсумок щодо найбільш популярних товарів у замовленнях, вираховується найбільш популярна категорія товарів у певній точці видачі. Після обчислення дані статистики записуються в об’єкт та серіалізуються для запису в файл.
+     Актуальні статистичні дані десеріалізуються та надсилаються на веб-клієнт за користувацьким запитом GET.
+
+
+     3 UML ДІАГРАМИ СИСТЕМИ
+     3.1 UML діаграма прецедентів
+
+     На рисунку 3.1 зображено діаграму прецедентів для програмного забезпечення «розумної» точки видачі.
+     
+
+     Рисунок 3.1 – UML діаграма прецедентів
+     
+     
+     3.2 UML діаграма взаємодії
+
+     На рисунку 3.2 зображено UML діаграму взаємодії. На ній відображено опис поведінки груп об'єктів, які взаємодіють, на прикладі відстеження пристроєм свого стану та сповіщення сервера про необхідність проведення технічного огляду. 
+     
+Рисунок 3.2 – UML діаграма взаємодії
+
+     3.3 UML діаграма діяльності
+
+     На діаграмі діяльності відображено (див. додаток Е) модель основних послідовностей бізнес-процесів, пов’язаних із програмним забезпеченням «розумного» пристрою в розроблюваній системі. Для зручності розуміння на діаграмі використано «доріжки» для представлення процесів.
+     
+     3.4 UML діаграма станів
+
+     UML діаграму станів зображено на рисунку 3.3. Діаграма візуалізує зміни станів під час процесу видачі замовлення клієнтові.
+     
+     
+     Рисунок 3.3 – UML діаграма станів
+     
+
+     ВИСНОВКИ
+     
+     
+     У ході виконання лабораторної роботи набули навички розробки програмного забезпечення для IoT пристроїв як частини великої програмної системи.
+     Посилання на репозиторій з програмним кодом: https://github.com/NureBerestPolina/apz-pzpi-21-3-berest-polina/tree/main/Task3
+     Посилання на відео з демонстрацією роботи застосунку: https://youtu.be/gUJkyQMDnno
+     
+ДОДАТОК А
+     Program.cs
+     
+      001 using PickupCounterIoT.Services;
+      002 using PickupCounterIoT.Settings;
+      003 using System.Text.Json;
+      004 
+      005 /// <summary>
+      006 /// Represents the main entry point of the application.
+      007 /// </summary>
+      008 CounterSettings settings = new CounterSettings(
+      009     String.Empty, 
+      010     default, 
+      011     default, 
+      012     default, 
+      013     default);
+      014 
+      015 int doorOpenCount;
+      016 double minCellTemp;
+      017 double maxCellTemp;
+      018 
+      019 /// <summary>
+      020 /// Gets the user's preferred locale.
+      021 /// </summary>
+      022 Locale userLocale = GetUserLocale();
+      023 
+      024 /// <summary>
+      025 /// Loads the localization resource based on the user's locale.
+      026 /// </summary>
+      027 var resourceManager = LoadLocalizationResource(userLocale);
+      028 
+      029 Console.Write(resourceManager["EnterDoorOpenCount"]);
+      030 if (int.TryParse(Console.ReadLine(), out doorOpenCount))
+      031 {
+      032     Console.Write(resourceManager["EnterMinTemperature"]);
+      033     if (double.TryParse(Console.ReadLine(), out minCellTemp))
+      034     {
+      035         Console.Write(resourceManager[ "EnterMaxTemperature"]);
+      036         if (double.TryParse(Console.ReadLine(), out maxCellTemp))
+      037         {
+      038             Console.Write(resourceManager["EnterId"]);
+      039             var id = Console.ReadLine();
+      040             if (id?.Length == new Guid().ToString().Length)
+      041             {
+      042                 settings = new CounterSettings(
+      043                     id, 
+      044                     userLocale, 
+      045                     doorOpenCount, 
+      046                     minCellTemp, 
+      047                     maxCellTemp);
+      048 
+      049                 Console.WriteLine(resourceManager[ "Settings"], settings;
+      050             }
+      051             else
+      052             {
+      053                 Console.WriteLine( resourceManager["InvalidInputId"]);
+      054             }
+      055         }
+      056         else
+      057         {
+      058             Console.WriteLine( resourceManager["InvalidInputMaxTemperature"]);
+      059         }
+      060     }
+      061     else
+      062     {
+      063         Console.WriteLine( resourceManager["InvalidInputMinTemperature"]);
+      064     }
+      065 }
+      066 else
+      067 {
+      068     Console.WriteLine( resourceManager["InvalidInputDoorOpenCount"]);
+      069 }
+      070 
+      071 var builder = WebApplication.CreateBuilder(args);
+      072 
+      073 builder.Services.AddHttpClient();
+      074 var countStorage = builder.Configuration.GetValue<string>( "FileStorages:OpenCountStorage");
+      075 
+      076 const string CORS_POLICY = "CorsPolicy";
+      077 builder.Services.AddCors(options =>
+      078 {
+      079     options.AddPolicy(name: CORS_POLICY,
+      080         corsPolicyBuilder =>
+      081         {
+      082             corsPolicyBuilder .WithOrigins("http://localhost:5106");
+      083             corsPolicyBuilder.AllowAnyMethod();
+      084             corsPolicyBuilder.AllowAnyHeader();
+      085         });
+      086 });
+      087 
+      088 builder.Services.AddSingleton(settings);
+      089 builder.Services.AddHostedService<TemperatureService>();
+      090 
+      091 builder.Services.AddControllers();
+      092 builder.Services.AddEndpointsApiExplorer();
+      093 builder.Services.AddSwaggerGen();
+      094 
+      095 var app = builder.Build();
+      096 
+      097 if (app.Environment.IsDevelopment())
+      098 {
+      099     app.UseSwagger();
+      100     app.UseSwaggerUI();
+      101 }
+      102 
+      103 app.UseHttpsRedirection();
+      104 
+      105 app.UseAuthorization();
+      106 
+      107 app.MapControllers();
+      108 
+      109 app.Run();
+      110 
+      111 /// <summary>
+      112 /// Prompts the user to select their language.
+      113 /// </summary>
+      114 /// <returns>The selected locale.</returns>
+      115 static Locale GetUserLocale()
+      116 {
+      117     while (true)
+      118     {
+      119         Console.Write("Select your language (en/ua): ");
+      120         string selectedLocale = Console.ReadLine() .ToLower();
+      121 
+      122         if (selectedLocale == "en" || selectedLocale == "ua")
+      123         {
+      124             return selectedLocale == "en" ? Locale.English : Locale.Ukrainian;
+      125         }
+      126 
+      127         Console.WriteLine(
+      128             "Invalid choice. Please enter 'en' for English or 'ua' for Ukrainian.");
+      129     }
+      130 }
+      131 
+      132 /// <summary>
+      133 /// Loads the localization resource based on the specified locale.
+      134 /// </summary>
+      135 /// <param name="locale">The locale to load the resource for.</param>
+      136 /// <returns>The loaded localization resource.</returns>
+      137 static Dictionary<string, string> LoadLocalizationResource( Locale locale)
+      138 {
+      139     string localizationFileName = $"Locales\\{locale}.json";
+      140     Dictionary<string, string> resource = new Dictionary<string, string>();
+      141 
+      142     try
+      143     {
+      144         string json = File.ReadAllText( localizationFileName);
+      145         resource = JsonSerializer .Deserialize<Dictionary<string, string>>(json);
+      146     }
+      147     catch (FileNotFoundException)
+      148     {
+      149         Console.WriteLine(
+      150             $"Localization file '{localizationFileName}' not found. Using default locale.");
+      151         string defaultLocalizationFileName = "en.json";
+      152         string json = File .ReadAllText(defaultLocalizationFileName);
+      153         resource = JsonSerializer .Deserialize<Dictionary<string, string>>(json);
+      154     }
+      155     catch (Exception ex)
+      156     {
+      157         Console.WriteLine($"Error loading localization: {ex.Message}");
+      158     }
+      159 
+      160     return resource;
+      161 }
+ 
+
+ДОДАТОК Б
+Ukrainian.json
+    
+      01: {
+      02:   "EnterDoorOpenCount": "Введть максимальну кiлькiсть вiдкривання дверцят комiрки до проведення тех. пiдтримки точки видачi: ",
+      03:   "EnterMinTemperature": "Введiть мiнiмальну границю нормальної температури для комiрок з контрольованим температурним режимом (в С): ",
+      04:   "EnterMaxTemperature": "Введiть максимальну границю нормальної температури для комiрок з контрольованим температурним режимом (в С): ",
+      05:   "EnterId": "Введiть ID девайса:",
+      06:   "InvalidInputDoorOpenCount": "Некоректне введення кiлькостi вiдкритих дверей комiрки. Будь ласка, введiть цiле число.",
+      07:   "InvalidInputMinTemperature": "Некоректне введення мiнiмальної температури (в С). Будь ласка, введiть числове значення.",
+      08:   "InvalidInputMaxTemperature": "Некоректне введення максимальної температури (в С). Будь ласка, введiть числове значення.",
+      09:   "InvalidInputId": "Некоректне введення ID. Будь ласка, введiть ID з iнструкцiї.",
+      10:   "Settings": "Налаштування: {0}"
+      11: }
+
+
+ДОДАТОК В
+TechInspectionController.cs
+
+      001 using Microsoft.AspNetCore.Mvc;
+      002 using Newtonsoft.Json;
+      003 using PickupCounterIoT.Models;
+      004 using PickupCounterIoT.Services;
+      005 using PickupCounterIoT.Settings;
+      006 using System;
+      007 using System.Net.Http;
+      008 using System.Text;
+      009 
+      010 namespace PickupCounterIoT.Controllers
+      011 {
+      012     [ApiController]
+      013     [Route("[controller]")]
+      014     public class TechInspectionController : ControllerBase
+      015     {
+      016         private readonly CounterSettings settings;
+      017         private readonly IConfiguration configuration;
+      018         private readonly IHttpClientFactory httpClientFactory;
+      019         string filePath;
+      020 
+      021         public TechInspectionController(
+      022             CounterSettings settings, 
+      023             IConfiguration configuration, 
+      024             IHttpClientFactory httpClientFactory)
+      025         {
+      026             this.settings = settings;
+      027             this.configuration = configuration;
+      028             this.httpClientFactory = httpClientFactory;
+      029             filePath = configuration.GetValue<string>("FileStorages:OpenCountStorage");
+      030         }
+      031 
+      032         [HttpGet]
+      033         public IActionResult GetSettings()
+      034         {
+      035             return Ok(settings);
+      036         }
+      037 
+      038         [HttpPut("updateDoorOpenCount")]
+      039         public async Task<IActionResult> UpdateDoorOpenCountAsync(object requestData)
+      040         {
+      041             int currentCount = ReadDoorCount() + 1;
+      042 
+      043             if (currentCount >= settings.MaxDoorOpenCount)
+      044             {
+      045                 SendTechInspectionRequest(currentCount);
+      046 
+      047                 currentCount = 0;
+      048             }
+      049             WriteDoorCount(currentCount);
+      050             return Ok();
+      051         }
+      052 
+      053         [HttpPost]
+      054         public IActionResult ResetFridge(object requestData)
+      055         {
+      056             WriteDoorCount(0);
+      057             temperatureService.SetNormalTemperature();
+      058             return Ok();
+      059         }
+      060 
+      061 
+      062         private void WriteDoorCount(int count)
+      063         {
+      064             using (StreamWriter writer = new StreamWriter(filePath, false))
+      065             {
+      066                 writer.Write(count);
+      067             }
+      068         }
+      069 
+      070         private int ReadDoorCount()
+      071         {
+      072             int count = 0;
+      073 
+      074             if (System.IO.File.Exists(filePath))
+      075             {
+      076                 string content = System.IO.File.ReadAllText(filePath);
+      077                 int.TryParse(content, out count);
+      078                 return count;
+      079             }
+      080             else
+      081             {
+      082                 return 0;
+      083             }
+      084         }
+      085 
+      086         private async void SendTechInspectionRequest(int currentCount)
+      087         {
+      088             var client = httpClientFactory.CreateClient();
+      089             var baseUri = new Uri(configuration.GetValue<string>("ServerUrl"));
+      090             client.Timeout = TimeSpan.FromMinutes(5);
+      091 
+      092             var temperature = new TemperatureService(
+      093                 httpClientFactory, 
+      094                 settings, 
+      095                 configuration)
+      096                 .GetTemperature();
+      097 
+      098             var response = await client.PostAsJsonAsync(
+      099                 new Uri(baseUri, "odata/TechInspectionRequests"), 
+      100                 new TechInspectionRequest
+      101                 {
+      102                     Temperature = temperature,
+      103                     OpensCount = currentCount
+      104                 });
+      105         }
+      106     }
+      107 }
+
+ДОДАТОК Г 
+StatisticsController.cs
+      
+      001 using Microsoft.AspNetCore.Mvc;
+      002 using Newtonsoft.Json;
+      003 using PickupCounterIoT.Models;
+      004 using PickupCounterIoT.Settings;
+      005 using PickupCounterIoT.Models;
+      006 using System;
+      007 using System.Net.Http;
+      008 using System.Text;
+      009 
+      010 namespace PickupCounterIoT.Controllers
+      011 {
+      012     [ApiController]
+      013     [Route("[controller]")]
+      014     public class StatisticsController : ControllerBase
+      015     {
+      016         private readonly CounterSettings settings;
+      017         private readonly IConfiguration configuration;
+      018         private readonly IHttpClientFactory httpClientFactory;
+      019         string filePath;
+      020 
+      021         public StatisticsController(
+      022             CounterSettings settings, 
+      023             IConfiguration configuration, 
+      024             IHttpClientFactory httpClientFactory)
+      025         {
+      026             this.settings = settings;
+      027             this.configuration = configuration;
+      028             this.httpClientFactory = httpClientFactory;
+      029             filePath = configuration.GetValue<string>("FileStorages:StatisticStorage");
+      030         }
+      031 
+      032         [HttpGet]
+      033         public IActionResult GetStatistics()
+      034         {
+      035             var statistics = ReadStatistics();
+      036             return Ok(statistics);
+      037         }
+      038 
+      039         [HttpPut("updateStatistics")]
+      040         public async Task<IActionResult> UpdateStatistics(object obj)
+      041         {
+      042             var getIdFromHere = new TechInspectionRequest();
+      043 
+      044             var baseUri = new Uri(configuration.GetValue< string>("ServerUrl"));
+      045             var orders = await httpClientFactory.CreateClient()
+      046                 .GetFromJsonAsync<List<OrderItem>>(new Uri(
+      047                     baseUri, $"/counter/{configuration.GetValue<Guid>("CounterId")}/order-positions"));
+      048 
+      049             var statistics = new Statistic
+      050             {
+      051                 TopGoodId = GetTopGood(orders),
+      052                 MostPolpularCategory = GetMostPopularCategory(orders),
+      053                 TotalRevenue = CountTotalRevenue(orders)
+      054             };
+      055 
+      056             WriteStatistics(statistics);
+      057             return Ok();
+      058         }
+      059 
+      060         private static Guid GetTopGood(List<OrderItem> orders)
+      061         {
+      062             var orderItemStatistics = orders
+      063                 .GroupBy(oi => oi.GoodId)
+      064                 .Select(g => new OrderItemStatistics
+      065                 {
+      066                     GoodId = g.Key,
+      067                     Revenue = g.Sum(oi => oi.Count * oi.GoodOrdered.Price)
+      068                 })
+      069                 .OrderByDescending(s => s.Revenue)
+      070                 .FirstOrDefault();
+      071 
+      072             return orderItemStatistics?.GoodId ?? Guid.Empty;
+      073         }
+      074 
+      075         private static string GetMostPopularCategory (List<OrderItem> orders)
+      076         {
+      077             var orderItemStatistics = orders
+      078                 .GroupBy(oi => oi.GoodOrdered.Category.Name)
+      079                 .Select(g => new OrderItemStatistics
+      080                 {
+      081                     CategoryName = g.Key,
+      082                     Revenue = g.Sum(oi => oi.Count * oi.GoodOrdered.Price)
+      083                 })
+      084                 .OrderByDescending(s => s.Revenue)
+      085                 .FirstOrDefault();
+      086 
+      087             return orderItemStatistics?.CategoryName;
+      088         }
+      089 
+      090         private static decimal CountTotalRevenue( List<OrderItem> orders)
+      091         {
+      092             return orders.Sum(oi => oi.Count * oi.GoodOrdered.Price);
+      093         }
+      094 
+      095         private void WriteStatistics(Statistic statistic)
+      096         {
+      097             using (BinaryWriter writer = new BinaryWriter(System.IO.File.Open(filePath, FileMode.Create)))
+      098             {
+      099                 writer.Write(statistic.TopGoodId .ToByteArray()); 
+      100                 writer.Write(statistic .MostPolpularCategory);
+      101                 writer.Write(statistic.TotalRevenue);
+      102             }
+      103         }
+      104 
+      105         private Statistic ReadStatistics()
+      106         {
+      107             Statistic stat = new Statistic();
+      108             using (BinaryReader reader = new BinaryReader(
+      109                 System.IO.File.Open(filePath, FileMode.Open)))
+      110             {
+      111                 byte[] idBytes = reader.ReadBytes(16); 
+      112                 stat.TopGoodId = new Guid(idBytes);
+      113                 stat.MostPolpularCategory = reader.ReadString();
+      114                 stat.TotalRevenue = reader.ReadDecimal();
+      115             }
+      116 
+      117             return stat;
+      118         }
+      119     }
+      120 }
+
+ДОДАТОК Д
+TemperatureService.cs
+
+      01 using PickupCounterIoT.Models;
+      02 using PickupCounterIoT.Settings;
+      03 
+      04 namespace PickupCounterIoT.Services
+      05 {
+      06     public class TemperatureService : IHostedService, IDisposable
+      07     {
+      08         private readonly IHttpClientFactory httpClient;
+      09         private readonly CounterSettings settings;
+      10         private readonly IConfiguration configuration;
+      11         private readonly TimeSpan updateInterval = TimeSpan.FromMinutes(30);
+      12         private Timer timer;
+      13         private Random random = new Random();
+      14 
+      15         public TemperatureService(
+      16             IHttpClientFactory httpClient, 
+      17             CounterSettings settings, 
+      18             IConfiguration configuration)
+      19         {
+      20             this.httpClient = httpClient;
+      21             this.settings = settings;
+      22             this.configuration = configuration;
+      23         }
+      24 
+      25         public Task StartAsync(CancellationToken cancellationToken)
+      26         {
+      27             timer = new Timer(async (s) => 
+      28                 await UpdateTemperatureAsync(s), null, TimeSpan.Zero, updateInterval);
+      29             return Task.CompletedTask;
+      30         }
+      31 
+      32         public Task StopAsync(CancellationToken cancellationToken)
+      33         {
+      34             timer?.Change(Timeout.Infinite, 0);
+      35             return Task.CompletedTask;
+      36         }
+      37 
+      38         public void Dispose()
+      39         {
+      40             timer?.Dispose();
+      41         }
+      42 
+      43         private async Task UpdateTemperatureAsync(object state)
+      44         {
+      45             double temperature = GetTemperature();
+      46 
+      47             if (temperature > settings.MaxCellTempC ||
+      48                 temperature < settings.MinCellTempC)
+      49             {
+      50                 temperature = settings.locale == Locale.Ukrainian 
+      51                  ? temperature : ((temperature - 32) / 1.8);
+      52                 await SendPostRequestAsync(temperature);
+      53             }
+      54         }
+      55 
+      56         public double GetTemperature()
+      57         {
+      58             return random.NextDouble() * (settings.MaxCellTempC - settings.MinCellTempC + 2) 
+      59                 + (settings.MinCellTempC - 1);
+      60         }
+      61 
+      62         private async Task SendPostRequestAsync(double temperature)
+      63         {
+      64             var client = httpClient.CreateClient();
+      65             var baseUri = new Uri(configuration.GetValue<string>("ServerUrl"));
+      66 
+      67             var response = await client.PostAsJsonAsync(
+      68                 new Uri(baseUri, "odata/TechInspectionRequests"), new TechInspectionRequest
+      69             {
+      70                 Temperature = temperature
+      71             });
+      72         }
+      73     }
+      74 }
+
+ДОДАТОК Е
+Діаграма діяльності
+
+
+     24
+     
