@@ -199,6 +199,7 @@ static IEdmModel GetEdmModel()
     builder.EntitySet<TechInspectionRequest>("TechInspectionRequests").EntityType.Count().Filter().Expand().Select();
     builder.EntitySet<PickupCounter>("PickupCounters").EntityType.Count().Filter().Expand().Select();
     builder.EntitySet<CounterInstallationRequest>("CounterInstallationRequests").EntityType.Count().Filter().Expand().Select();
+    builder.EntitySet<Cell>("Cells").EntityType.Count().Filter().Expand().Select();
     builder.EntitySet<CounterDeinstallationRequest>("CounterDeinstallationRequests").EntityType.Count().Filter().Expand().Select();
 
     builder.EnableLowerCamelCase();

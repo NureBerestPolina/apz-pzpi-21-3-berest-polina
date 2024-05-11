@@ -24,12 +24,15 @@ namespace EnRoute.API.Controllers
                 return NotFound();
             }
 
+            order.Status = entity.Status;
+            order.FinalizedDate = DateTime.UtcNow;
+
             var counter = AppDbContext.PickupCounters.FirstOrDefault(c => c.Id == order.AssignedCell.CounterId);
 
-            await UpdateDoorOpenCount(counter.URI);
-            await UpdateCounterStatistics(counter.URI);
+            //await UpdateDoorOpenCount(counter.URI);
+            //await UpdateCounterStatistics(counter.URI);
 
-            return await base.Put(key, entity);
+            return await base.Put(key, order);
         }
 
         [HttpGet("counter/{counterId}/order-positions")]
