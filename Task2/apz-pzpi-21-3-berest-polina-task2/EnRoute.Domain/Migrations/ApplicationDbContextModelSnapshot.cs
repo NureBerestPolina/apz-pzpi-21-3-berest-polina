@@ -34,7 +34,7 @@ namespace EnRoute.Domain.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Categories");
+                    b.ToTable("Categories", (string)null);
                 });
 
             modelBuilder.Entity("EnRoute.Domain.Models.Cell", b =>
@@ -60,7 +60,7 @@ namespace EnRoute.Domain.Migrations
 
                     b.HasIndex("CounterId");
 
-                    b.ToTable("Cells");
+                    b.ToTable("Cells", (string)null);
                 });
 
             modelBuilder.Entity("EnRoute.Domain.Models.CounterDeinstallationRequest", b =>
@@ -85,7 +85,7 @@ namespace EnRoute.Domain.Migrations
 
                     b.HasIndex("CounterId");
 
-                    b.ToTable("CounterDeinstallationRequests");
+                    b.ToTable("CounterDeinstallationRequests", (string)null);
                 });
 
             modelBuilder.Entity("EnRoute.Domain.Models.CounterInstallationRequest", b =>
@@ -124,7 +124,7 @@ namespace EnRoute.Domain.Migrations
 
                     b.HasIndex("OrganizationId");
 
-                    b.ToTable("CounterInstallationRequests");
+                    b.ToTable("CounterInstallationRequests", (string)null);
                 });
 
             modelBuilder.Entity("EnRoute.Domain.Models.Good", b =>
@@ -171,7 +171,7 @@ namespace EnRoute.Domain.Migrations
 
                     b.HasIndex("ProducerId");
 
-                    b.ToTable("Goods");
+                    b.ToTable("Goods", (string)null);
                 });
 
             modelBuilder.Entity("EnRoute.Domain.Models.IssuedToken", b =>
@@ -198,7 +198,7 @@ namespace EnRoute.Domain.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("IssuedTokens");
+                    b.ToTable("IssuedTokens", (string)null);
                 });
 
             modelBuilder.Entity("EnRoute.Domain.Models.Order", b =>
@@ -229,7 +229,7 @@ namespace EnRoute.Domain.Migrations
 
                     b.HasIndex("CustomerId");
 
-                    b.ToTable("Orders");
+                    b.ToTable("Orders", (string)null);
                 });
 
             modelBuilder.Entity("EnRoute.Domain.Models.OrderItem", b =>
@@ -253,7 +253,7 @@ namespace EnRoute.Domain.Migrations
 
                     b.HasIndex("OrderId");
 
-                    b.ToTable("OrderItems");
+                    b.ToTable("OrderItems", (string)null);
                 });
 
             modelBuilder.Entity("EnRoute.Domain.Models.Organization", b =>
@@ -282,7 +282,7 @@ namespace EnRoute.Domain.Migrations
 
                     b.HasIndex("ManagerId");
 
-                    b.ToTable("Organizations");
+                    b.ToTable("Organizations", (string)null);
                 });
 
             modelBuilder.Entity("EnRoute.Domain.Models.PickupCounter", b =>
@@ -318,7 +318,7 @@ namespace EnRoute.Domain.Migrations
 
                     b.HasIndex("OrganizationId");
 
-                    b.ToTable("PickupCounters");
+                    b.ToTable("PickupCounters", (string)null);
                 });
 
             modelBuilder.Entity("EnRoute.Domain.Models.Producer", b =>
@@ -340,7 +340,7 @@ namespace EnRoute.Domain.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Producers");
+                    b.ToTable("Producers", (string)null);
                 });
 
             modelBuilder.Entity("EnRoute.Domain.Models.TechInspectionRequest", b =>
@@ -371,7 +371,7 @@ namespace EnRoute.Domain.Migrations
 
                     b.HasIndex("CellId");
 
-                    b.ToTable("TechInspectionRequests");
+                    b.ToTable("TechInspectionRequests", (string)null);
                 });
 
             modelBuilder.Entity("EnRoute.Domain.Models.User", b =>

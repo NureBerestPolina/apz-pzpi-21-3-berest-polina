@@ -5,7 +5,7 @@ namespace EnRoute.Domain.Models
 {
     public class Order : IODataEntity
     {
-        public Guid Id { get; set; }
+        public Guid Id { get; set; } = Guid.NewGuid();
         public DateTime OrderedDate { get; set; } = DateTime.UtcNow;
         public DateTime? FinalizedDate { get; set; }
         public OrderStatus Status { get; set; } = OrderStatus.New;

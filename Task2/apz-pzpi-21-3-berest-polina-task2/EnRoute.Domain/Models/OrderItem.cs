@@ -9,7 +9,7 @@ namespace EnRoute.Domain.Models
 {
     public class OrderItem : IODataEntity
     {
-        public Guid Id { get; set; }
+        public Guid Id { get; set; } = Guid.NewGuid();
         public int Count { get; set; }
         public Guid GoodId { get; set; }
         public Good GoodOrdered { get; set; }

@@ -4,6 +4,10 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Net.Http;
+using System;
+using EnRoute.API.Contracts.Orders.Requests;
+using EnRoute.Domain.Constants;
+using EnRoute.Domain.Models.Interfaces;
 
 namespace EnRoute.API.Controllers
 {
@@ -68,6 +72,42 @@ namespace EnRoute.API.Controllers
             var client = httpClientFactory.CreateClient();
             client.Timeout = TimeSpan.FromMinutes(5);
             var response = await client.PutAsJsonAsync(new Uri(uri + "/Statistics/updateStatistics").ToString(), new { });
+        }
+
+        [HttpPost]
+        [Route("MakeOrder")]
+        public async Task<IActionResult> MakeOrder([FromBody] MakeOrderRequest request)
+        {
+            var order = new Order
+            {
+                CustomerId = request.CustomerId
+            };
+
+            var goodOrdered = await AppDbContext.Goods.FindAsync(request.GoodId);
+            var orderNeedsCooling = goodOrdered.NeedsCooling;
+            var orderItem = new OrderItem
+            {
+                Count = request.AmountOrdered,
+                GoodId = request.GoodId,
+                OrderId = order.Id
+            };
+
+            var assignedCell = await AppDbContext.Cells
+                .FirstAsync(c => c.hasTemperatureControl == orderNeedsCooling
+                    && c.IsFree
+                    && c.CounterId == request.PickupCounterId);
+
+            assignedCell.IsFree = false;
+            order.AssignedCellId = assignedCell.Id;
+            order.Items.Add(orderItem);
+            order.AssignedCell = default;
+
+            AppDbContext.Orders.Add(order);
+
+            await AppDbContext.SaveChangesAsync();
+
+
+            return Ok(order);
         }
     }
 }

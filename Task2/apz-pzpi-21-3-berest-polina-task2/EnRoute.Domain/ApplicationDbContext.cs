@@ -32,7 +32,8 @@ namespace EnRoute.Domain
             builder.Entity<User>().HasIndex(c => c.Email).IsUnique();
             builder.Entity<Order>().HasOne(o => o.Customer).WithMany().HasForeignKey(o => o.CustomerId).OnDelete(DeleteBehavior.NoAction);
 
-            builder.Entity<OrderItem>().HasOne(o => o.Order).WithMany(o => o.Items).HasForeignKey(o => o.OrderId).OnDelete(DeleteBehavior.NoAction);
+            builder.Entity<Order>().HasMany(c => c.Items).WithOne(c => c.Order).OnDelete(DeleteBehavior.NoAction);
+            builder.Entity<Order>().HasIndex(c => c.AssignedCellId).IsUnique(false);
 
             builder.Entity<Cell>().HasOne(c => c.Counter).WithMany(p => p.Cells).HasForeignKey(c => c.CounterId).OnDelete(DeleteBehavior.Cascade);
         }
