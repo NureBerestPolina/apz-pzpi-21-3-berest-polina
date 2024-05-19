@@ -1,0 +1,656 @@
+1 МЕТА РОБОТИ
+     
+     Метою виконання лабораторної роботи є набуття навичок із розробки клієнтської (frontend) частини для великих проєктів, зокрема для розроблюваної програмної системи для для автоматизації логістики інтернет-шопінгу для малих та середніх бізнесів «En Route».
+
+     2 ХІД РОБОТИ
+     2.1 ОПИС АРХІТЕКТУРИ СИСТЕМИ
+     2.1.1 Опис обраних технологій
+     
+     Для розробки клієнтської (frontend) частини проєкту було обрано веб-фреймворк Angular, призначений для створення ефективних односторінкових застосунків (Single Page Applications) та мову програмування TypeScript для забезпечення статичної типізації коду, яка підвищує надійність програми. Використано версії  Angular CLI 17.1.1 та Node 18.17.0.
+     Angular використовує компоненти як основні блоки побудови застосунків. Кожен компонент відповідає за окрему частину користувацького інтерфейсу: авторизацію, реєстрацію, додавання нової страви тощо. Компоненти, моделі та сервіси можна відповідно згрупувати для кращого управління кодом (наприклад, у розробленому проєкті об’єднані сервіс авторизації, роботи з JWT-токенами, DTO для авторизації та відповідні компоненти).
+     Функції двостороннього зв'язування (Two-Way Data Binding), вбудовані у фреймворк, дозволяють автоматично оновлювати дані в користувацькому інтерфейсі, якщо вони змінюються в ході виконання функцій застосунку. Це суттєво пришвидшує роботу з введенням та виведенням даних.
+     Angular підтримує асинхронну взаємодію з сервером за допомогою HTTP-запитів (з використанням HttpClient для взаємодії з RESTful API), дозволяючи отримувати та надсилати дані до сервера асинхронно. Також використано RxJS використовувався для ефективної обробки асинхронних подій та керування потоками даних.
+     Використані технології забезпечили високу продуктивність, надійність і зручність управління кодом у процесі розробки та підключення до системи веб-клієнта.
+
+     2.1.2 Структура компонент
+
+     	При запуску застосунку першим виконується файл main.ts. Цей файл містить точку входу для виконання коду:
+      1 import { platformBrowserDynamic } from '@angular/platform-browser-dynamic';
+      2 import { AppModule } from './app/app.module';
+      3 
+      4 platformBrowserDynamic().bootstrapModule(AppModule)
+      5   .catch(err => console.error(err));
+     Після виконання файлу main.ts керування передається основному модулю AppModule, в якому визначено всі компоненти, сервіси, директиви та бібліотеки, які використовуються для роботи застосунку (див. додаток А).
+     Angular будує дерево компонент, використовуючи інформацію з AppModule. Після побудови з дерева компонент обирається коренева – AppComponent і розпочинається виконання додатку з додаванням кореневої компоненти у DOM.
+     Життєвий цикл кожної компоненти починається з виконанння ngOnInit, наприклад, в AppComponent першочергово перевіряється, чи в локальному сховищі вже записано дані про користувача з попередньої авторизації, чи необхідно виконати повторну:
+      1 ngOnInit() {
+      2   this.authService.loadUserFromLocalStorage();
+      3 }
+     Angular відслідковує зміни в даних та автоматично оновлює відображення в DOM.
+     Кожна компонента застосунку складається із чотирьох файлів: розмітки HTML, стилів CSS, файлу TypeScript із логікою та файлу для тестування.
+     AppComponent керує автоматичним підвантаженням компоненти, на яку вказує посилання, обране користувачем в процесі взаємодії з застосунком. При цьому компоненти «шапки» та «підвалу» залишаються сталими:
+      1 <app-header></app-header>
+      2 <router-outlet></router-outlet>
+      3 <app-footer></app-footer>
+     В проєкті використано селектори, визначені для всіх компонент для включення у шаблони інших компонент (див. додаток Б).
+     Управління шляхами здійснюється в app-routing.module.ts (див. додаток В).
+     
+
+     2.2 ОПИС ІНЖЕНЕРНИХ РІШЕНЬ
+     2.2.1 Формування запитів
+     
+     В розроблюваній системі було використано протокол OData для створення запитів до серверного застосунку.
+     За принципами REST API було реалізовано «базовий сервіс» (див. додаток Г). Успадкувавши сервіс, можна отримати базові операції для будь-якої моделі. 
+     У разі, якщо необхідна специфічна логіка: спеціальні фільтри, сортування, «розширення» моделі іншими об’єктами, запит OData формується безпосередньо в специфічному сервісі. Кожна з основних моделей (наприклад, точка видачі, товар, організація тощо) має свій сервіс. Наприклад, ось функція для запиту на отримання усіх товарів компанії:
+      1   getAllOrganizationGoods(organizationId: string): Observable<Good[]> {
+      2     return this.ODataService.entities()
+      3       .query((q) => {
+      4           q.expand('producer,category');
+      5           q.filter(({ e }) => e().eq('organizationId', organizationId, 'none'))
+      6         }
+      7       )
+      8       .fetch()
+      9       .pipe(this.mapODataEntities);
+      10   }
+     HTTP-клієнт повертає тип даних Observable<T>. Це дозволяє ефективно взаємодіяти з асинхронними запитами та отримувати оновлення стану або результати запитів в реальному часі, «підписавшись» на Observable.
+
+     2.2.2 Аутентифікація користувача
+     
+     Система використовує використовує JSON Web Token (JWT) для перевірки аутентифікації користувача та визначення його ролі за відповіддю сервера.
+     Користувач у відповідному компоненті надсилає запит на авторизацію за допомогою аутентифікаційного ключа (адреса електронної пошти та пароль). На сервері створюється створює JWT та токен для оновлення (refresh token), які отримує веб-клієнт. Коли JWT токен закінчує свій строк, на сервері за допомогою рефреш токена генерується новий JWT токен без необхідності повторно вводити логін та пароль. Це підвищує безпеку та покращує досвід користувача.
+     Коли користувач робить запит до API додатку, запит «перехоплює» AuthInterceptor та додає до його заголовку токени. 
+     JWT складається з трьох частин: заголовок (header), корисні дані (claims) та підпис (signature). Заголовок JWT містить інформацію про те, як обчислювати підпис JWT. Корисні дані (claims) – це інформація про користувача, яка зберігається всередині токена. У системі сервер створює, а веб-застосунок очікує на JWT з інформацією про ідентифікатор користувача, адресу його електронної пошти, дату реєстрації в системі та ім’я:
+      1 export enum JwtClaims {
+      2     Sub = 'sub',
+      3     Email = 'email',
+      4     Name = 'name',
+      5     RegisterDate = 'registerDate',
+      6     Roles = 'roles',
+      7 }
+     За авторизацію в певній ролі, збереження даних про користувача та завершення сесій відповідає AuthService (див. додаток Д). TokenStorageService містить функції для роботи з токенами – отримання та запису інформації з них (див. додаток Е). 
+     Функціонал застосунку змінюється залежно від ролі користувача:
+1 export enum Role {
+2   Customer = 'customer',
+3   OrganizationManager = 'organizationmanager',
+4   Admin = 'admin',
+5   Sysadmin = 'sysadmin',
+6 }
+
+     2.2.3 Локалізація	
+     
+     Веб-клієнт підтримує інтернаціоналізацію та пристосований до двох локалей: української та англійської. 
+     При запуску та збиранні застосунку (build) поточна локаль визначається за LOCALE_ID. Вона є частиною Angular Common Module та визначена як один із провайдерів у app.module.ts.
+     Усі теги, текст яких має бути перекладеним, помічені атрибутом i18n, повідомлення, які прописані як константні рядки в програмному коді на TypeScript (наприклад, текст для сповіщень про успішність виконання дії) помічені функцією $localize(). Після виконання автоматичного збору всіх рядків, які потребують перекладу, вони переносяться до файлу xlf, який перекладено для кожної локалі. Дані текстові дані вибираються з файлу, який відповідає поточній локалі, за унікальним ідентифікатором рядка:
+      1 <trans-unit id="7000649363168371045" datatype="html">
+      2   <source>Save changes</source>
+      3   <target>Зберегти зміни</target>
+      4   <context-group purpose="location">
+5     <context context-type="sourcefile"> src/app/features/organization/assortment-management/edit-product/edit-product.component.html </context>
+      6     <context context-type="linenumber">88</context>
+      7   </context-group>
+      8 </trans-unit>
+     Важливим для веб-застосунку є також відображення дат та часу відповідно до локалі. Для цього дані про дату та час, отримані з сервера в форматі UTC, приводяться у відповідність локалі за допомогою date pipe.
+     За допомогою компонентів PrimeNG локалізується також виведення грошових сум. Грошова одиниця змінюється на гривню чи долар відповідно до локалі.
+     
+     2.2.4 Валідація користувацького введення
+     
+     У веб застосунку передбачено два етапи валідації: спершу відбувається стандартна перевірка введення за допомогою атрибутів форм required, maxlength та minlength, контролюється тип введених даних (email, text, number). Користувачу за допомогою повідомлень під неправильно заповненим елементом форми виводиться інформаційне повідомлення червоного кольору:
+01 <div class="mt-4 col-12">
+02   <span class="p-float-label">
+03     <textarea id="description" name="description" rows="5" [(ngModel)]="model.description" class="col-12" pInputTextarea
+04       required #descriptionField="ngModel" minlength="10" maxlength="200"></textarea>
+05     <label for="description" i18n> Organization short description</label>
+06   </span>
+07 
+08   <div *ngIf="descriptionField.invalid && (descriptionField.dirty || descriptionField.touched)">
+09     <div *ngIf="descriptionField?.errors?.['required']" class="alert alert-danger col-12" i18n>
+10       Short description is required.
+11     </div>
+12     <div *ngIf="descriptionField?.errors?.['minlength']" class="alert alert-danger col-12" i18n>
+13       Short description should have at least 10 characters.
+14     </div>
+15     <div *ngIf="descriptionField?.errors?.['maxlength']" class="alert alert-danger col-12" i18n>
+16       Short description maximum size is 200 characters.
+17     </div>
+18   </div>
+19 </div>
+     Після того, як введення проходить початкову перевірку, розблоковується кнопка надсилання даних.
+     Другий етап пов’язаний із використанням директиви ngModel. Вона робить прив’язку користувацького введення до об’єкту, створеного в компоненті. Перед відправленням запиту до сервера цей об’єкт перевіряється функціями для валідації для перевірки відповідності вимогам за бізнес-логікою. Наприклад, чи збігається пароль та повторно введений пароль.
+     
+     
+
+
+     2.3 UML ДІАГРАМИ СИСТЕМИ
+     2.3.1 UML діаграма прецедентів
+
+     На рисунку 2.3.1 зображено діаграму прецедентів для веб-застосунку розроблюваної програмної системи. Можливі ролі користувачів: адміністратор, системний адміністратор, менеджер компанії-підписниці.
+     
+     Рисунок 2.3.1 – UML діаграма прецедентів для веб-клієнта
+
+     2.3.2 UML діаграма компонент
+
+     На рисунку 2.3.2 зображено UML діаграму компонент для веб-клієнта розроблюваної системи. На ній відображено залежності між структурними компонентами застосунку. 
+
+Рисунок 2.3.2 – UML діаграма компонент веб-клієнта
+
+     2.3.3 UML діаграма діяльності
+
+     На діаграмі діяльності відображено (див. додаток Ж) модель основних послідовностей бізнес-процесів, пов’язаних із процесом подання та розгляду заявки на деінсталяцію точки видачі, встановленої на вимогу певної компанії-підписниці. Для зручності розуміння на діаграмі використано «доріжки» для представлення процесів.
+     
+     
+     
+     
+     
+     2.3.4 UML діаграма станів
+
+     UML діаграму станів зображено на рисунку 3.3. Діаграма візуалізує зміни станів процесу встановлення точки видачі інтернет-замовлень на вимогу від менеджера компанії-підписниці.
+
+     Рисунок 2.3.3 – UML діаграма станів встановлення точки видачі
+
+
+     3 ВИСНОВКИ
+     
+     У ході виконання лабораторної роботи набули навички розробки веб-клієнта (frontend) як частини великої програмної системи.
+     Посилання на репозиторій: https://github.com/NureBerestPolina/apz-pzpi-21-3-berest-polina/tree/main/Task4
+     Посилання на відео з демонстрацією роботи застосунку: https://youtu.be/yARJBWd9OaM
+     
+     ДОДАТОК А
+     AppModule.ts
+
+      001 import { NgModule } from '@angular/core';
+      002 import { BrowserModule } from '@angular/platform-browser';
+      003 import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
+      004 import { RouterModule } from '@angular/router';
+      005 import { FormsModule } from '@angular/forms';
+      006 import { HttpClientModule } from '@angular/common/http';
+      007 import { AppRoutingModule } from './app-routing.module';
+      008 import { ODataModule } from 'angular-odata';
+      009 import { authInterceptorProviders as AuthInterceptorProviders } from './interceptors/auth.interceptor';
+      010 import { LOCALE_ID } from '@angular/core';
+      011 import { registerLocaleData } from '@angular/common';
+      012 import localeUk from '@angular/common/locales/uk';
+      013 import { InputTextModule } from 'primeng/inputtext';
+      014 import { InputTextareaModule } from 'primeng/inputtextarea';
+      015 import { ToastModule } from 'primeng/toast';
+      016 import { PasswordModule } from 'primeng/password';
+      017 import { RadioButtonModule } from 'primeng/radiobutton';
+      018 import { FieldsetModule } from 'primeng/fieldset';
+      019 import { InputNumberModule } from 'primeng/inputnumber';
+      020 import { MessagesModule } from 'primeng/messages';
+      021 import { StyleClassModule } from 'primeng/styleclass';
+      022 import { ButtonModule } from 'primeng/button';
+      023 import { DropdownModule } from 'primeng/dropdown';
+      024 import { CheckboxModule } from 'primeng/checkbox';
+      025 
+      026 import { AppComponent } from './app.component';
+      027 import { FooterComponent } from './components/common/footer/footer.component';
+      028 import { HeaderComponent } from './components/common/header/header.component';
+      029 import { NotFoundComponent } from './components/common/not-found/not-found.component';
+      030 import { BlockedComponent } from './components/common/blocked/blocked.component';
+      031 import { HomeComponent } from './components/public/home/home.component';
+      032 import { environment } from '../environments/environment';
+      033 import { AppClientListComponent } from './components/public/app-client-list/app-client-list.component';
+      034 import { RegisterComponent } from './components/public/register/register.component';
+      035 import { LoginComponent } from './components/public/login/login.component';
+      036 import { AssortmentComponent } from './components/organizations/assortment/assortment.component';
+      037 import { AddGoodComponent } from './components/organizations/add-good/add-good.component';
+      038 import { EditGoodComponent } from './components/organizations/edit-good/edit-good.component';
+      039 import { AddProducerComponent } from './components/organizations/add-producer/add-producer.component';
+      040 import { CountersListComponent } from './components/organizations/counters-management/counters-list/counters-list.component';
+      041 import { MakeInstallCounterRequestComponent } from './components/organizations/counters-management/make-install-counter-request/make-install-counter-request.component';
+      042 import { BackupsManagementComponent } from './components/sysadmin/backups-management/backups-management.component';
+      043 import { ManageCounterInstallRequestsComponent } from './components/admin/manage-counter-install-requests/manage-counter-install-requests.component';
+      044 import { AddCounterUriComponent } from './components/admin/add-counter-uri/add-counter-uri.component';
+      045 import { ManageOrganizationsComponent } from './components/admin/manage-organizations/manage-organizations.component';
+      046 import { SystemStatisticsComponent } from './components/admin/system-statistics/system-statistics.component';
+      047 import { StatisticsComponent } from './components/organizations/statistics/statistics.component';
+      048 import { ManageTechinspectionRequestsComponent } from './components/admin/manage-techinspection-requests/manage-techinspection-requests.component';
+      049 
+      050 registerLocaleData(localeUk);
+      051 
+      052 @NgModule({
+      053   declarations: [
+      054     AppComponent,
+      055     FooterComponent,
+      056     HeaderComponent,
+      057     NotFoundComponent,
+      058     BlockedComponent,
+      059     HomeComponent,
+      060     AppClientListComponent,
+      061     RegisterComponent,
+      062     LoginComponent,
+      063     AssortmentComponent,
+      064     AddGoodComponent,
+      065     EditGoodComponent,
+      066     AddProducerComponent,
+      067     CountersListComponent,
+      068     MakeInstallCounterRequestComponent,
+      069     BackupsManagementComponent,
+      070     ManageCounterInstallRequestsComponent,
+      071     AddCounterUriComponent,
+      072     ManageOrganizationsComponent,
+      073     SystemStatisticsComponent,
+      074     StatisticsComponent,
+      075     ManageTechinspectionRequestsComponent
+      076   ],
+      077     imports: [
+      078       BrowserModule,
+      079       AppRoutingModule,
+      080       BrowserAnimationsModule,
+      081       FormsModule,
+      082       HttpClientModule,
+      083       RouterModule,
+      084       InputTextModule,
+      085       InputTextareaModule,
+      086       PasswordModule,
+      087       RadioButtonModule,
+      088       DropdownModule, 
+      089       CheckboxModule,
+      090       FieldsetModule,
+      091       InputNumberModule,
+      092       InputTextareaModule,
+      093       ToastModule,
+      094       MessagesModule,
+      095       StyleClassModule,
+      096       ButtonModule,
+      097       ODataModule.forRoot({
+      098         config: {
+      099           serviceRootUrl: `${environment.apiBaseUrl}/odata/`
+      100         }
+      101       })
+      102     ],
+      103   providers: [ AuthInterceptorProviders,
+      104     { provide: LOCALE_ID, useValue: 'uk-UA' }],
+      105   bootstrap: [AppComponent]
+      106 })
+      107 export class AppModule { }
+     
+
+     ДОДАТОК Б
+     HeaderComponent.ts
+      
+      01 import { Component, OnDestroy, OnInit } from '@angular/core';
+      02 import { Router } from '@angular/router';
+      03 import { Subscription } from 'rxjs';
+      04 import { AuthService } from '../../../services/auth/auth.service';
+      05 import { User } from '../../../models/auth/user.model';
+      06 import { Organization } from '../../../models/organization.model';
+      07 import { Role } from '../../../models/auth/roles.enum';
+      08 import { OrganizationService } from '../../../services/organization/organization.service';
+      09 
+      10 @Component({
+      11   selector: 'app-header',
+      12   templateUrl: './header.component.html',
+      13   styleUrl: './header.component.css'
+      14 })
+      15 export class HeaderComponent implements OnInit, OnDestroy{
+      16   user?: User;
+      17   organization?: Organization;
+      18   role = Role;
+      19 
+      20   userSubscription$?: Subscription;
+      21   organizationSubscription$?: Subscription;
+      22 
+      23   /**
+      24     * @constructor
+      25     * @param {AuthService} authService Service for user registration and authentication.
+      26     * @param {Router} router Service for navigation between components.
+      27     * @param {OrganizationService} organizationService Service to manage organizations.
+      28   */
+      29   constructor(
+      30     private authService: AuthService,
+      31     private router: Router,
+      32     private readonly organizationService: OrganizationService
+      33   ) {}
+      34 
+      35   ngOnInit(): void {
+      36     this.userSubscription$ = this.authService.user() .subscribe({
+      37       next: (user) => {
+      38         this.user = user;
+      39 
+      40         if (user && user?.roles?.includes(Role.OrganizationManager)) {
+      41           this.organizationSubscription$ = this.organizationService
+      42             .getOrganizationByManagerId(user?.id)
+      43             .subscribe((s) => (this.organization = s));
+      44         }
+      45       },
+      46     });
+      47   }
+      48 
+      49   ngOnDestroy(): void {
+      50     this.userSubscription$?.unsubscribe();
+      51     this.organizationSubscription$?.unsubscribe();
+      52   }
+      53 
+      54   onLogout(): void {
+      55     this.authService.logout();
+      56     this.router.navigateByUrl('/');
+      57   }
+      58 }
+
+
+
+     ДОДАТОК В
+     App-routing.module.ts
+     
+      001 import { NgModule } from '@angular/core';
+      002 import { RouterModule, Routes } from '@angular/router';
+      003 import { BlockedComponent } from './components/common/ blocked/blocked.component';
+      004 import { NotFoundComponent } from './components/common/not-found/not-found.component';
+      005 import { HomeComponent } from './components/public/home/ home.component';
+      006 import { LoginComponent } from './components/public/login/ login.component';
+      007 import { RegisterComponent } from './components/public/ register/register.component';
+      008 import { AssortmentComponent } from './components/ organizations/assortment/assortment.component';
+      009 import { AddGoodComponent } from './components/ organizations/add-good/add-good.component';
+      010 import { EditGoodComponent } from './components/organizations/edit-good/edit-good.component';
+      011 import { AddProducerComponent } from './components /organizations/add-producer/add-producer.component';
+      012 import { BackupsManagementComponent } from './components /sysadmin/backups-management/backups-management.component';
+      013 import { CountersListComponent } from './components/ organizations/counters-management/counters-list/counters-list.component';
+      014 import { MakeInstallCounterRequestComponent } from './components/organizations/counters-management/make-install-counter-request/make-install-counter-request.component';
+      015 import { ManageCounterInstallRequestsComponent } from './components/admin/manage-counter-install-requests/manage-counter-install-requests.component';
+      016 import { AddCounterUriComponent } from './components/ admin/add-counter-uri/add-counter-uri.component';
+      017 import { ManageOrganizationsComponent } from './components/ admin/manage-organizations/manage-organizations.component';
+      018 import { SystemStatisticsComponent } from './components /admin/system-statistics/system-statistics.component';
+      019 import { StatisticsComponent } from './components/ organizations/statistics/statistics.component';
+      020 import { ManageTechinspectionRequestsComponent } from './components/admin/manage-techinspection-requests/manage-techinspection-requests.component';
+      021 
+      022 const routes: Routes = [
+      023   {
+      024     path: '',
+      025     component: HomeComponent,
+      026   },
+      027   {
+      028     path: 'notFound',
+      029     component: NotFoundComponent,
+      030   },
+      031   {
+      032     path: 'blocked',
+      033     component: BlockedComponent,
+      034   },
+      035   {
+      036     path: 'login',
+      037     component: LoginComponent,
+      038   },
+      039   {
+      040     path: 'register',
+      041     component: RegisterComponent,
+      042   },
+      043   {
+      044     path: 'shopManagement/:organizationId/assortment',
+      045     component: AssortmentComponent,
+      046   },
+      047   {
+      048     path: 'shopManagement/:organizationId/counters',
+      049     component: CountersListComponent,
+      050   },
+      051   {
+      052     path: 'shopManagement/:organizationId/make-counter-installation-request',
+      053     component: MakeInstallCounterRequestComponent,
+      054   },
+      055   {
+      056     path: 'shopManagement/:organizationId/add-good',
+      057     component: AddGoodComponent,
+      058   },
+      059   {
+      060     path: 'shopManagement/:organizationId/edit-good/:goodId',
+      061     component: EditGoodComponent,
+      062   },
+      063   {
+      064     path: 'shopManagement/:organizationId/counters/statistics',
+      065     component: StatisticsComponent,
+      066   },
+      067   {
+      068     path: 'shopManagement/:organizationId/add-producer',
+      069     component: AddProducerComponent,
+      070   },
+      071   {
+      072     path: 'admin/system-administration',
+      073     component: BackupsManagementComponent,
+      074   },
+      075   {
+      076     path: 'admin/counters-installation-requests',
+      077     component: ManageCounterInstallRequestsComponent,
+      078   },
+      079   {
+      080     path: 'admin/counter-installation-requests/:requestId/add-uri',
+      081     component: AddCounterUriComponent,
+      082   },
+      083   {
+      084     path: 'admin/billing/statistics',
+      085    component: SystemStatisticsComponent,
+      086   },
+      087   {
+      088     path: 'admin/organizations-management',
+      089     component: ManageOrganizationsComponent,
+      090   },
+      091   {
+      092     path: 'admin/techinspection-requests-management',
+      093     component: ManageTechinspectionRequestsComponent,
+      094   }
+      095 ];
+      096 
+      097 @NgModule({
+      098   imports: [RouterModule.forRoot(routes, { anchorScrolling: 'enabled' })],
+      099   exports: [RouterModule],
+      100 })
+      101 export class AppRoutingModule { }
+      
+
+ДОДАТОК Г 
+ODataServiceBase.ts
+      
+      01 import {
+      02   ODataEntities,
+      03   ODataEntity,
+      04   ODataEntitySetService,
+      05   ODataServiceFactory,
+      06 } from 'angular-odata';
+      07 import { Observable, map } from 'rxjs';
+      08 
+      09 export abstract class ODataServiceBase<TEntity> {
+      10   protected abstract oDataEntityName: string;
+      11 
+      12   constructor(protected readonly factory: ODataServiceFactory) {}
+      13 
+      14   public get ODataService(): ODataEntitySetService<TEntity> {
+      15     return this.factory.entitySet<TEntity>(this.oDataEntityName);
+      16   }
+      17 
+      18   public getAll(): Observable<TEntity[]> {
+      19     return this.ODataService.fetchAll() .pipe(this.mapODataEntities);
+      20   }
+      21 
+      22   public getById(id: string): Observable<TEntity | null> {
+      23     return this.ODataService.entity(id).fetchEntity();
+      24   }
+      25 
+      26   public create(entity: Partial<TEntity>): Observable<TEntity> {
+      27     return this.ODataService.create(entity) .pipe(this.mapODataEntity);
+      28   }
+      29 
+      30   public update(id: string, enitity: Partial<TEntity>): Observable<TEntity> {
+      31     return this.ODataService.update(id, enitity) .pipe(this.mapODataEntity);
+      32   }
+      33 
+      34   protected mapODataEntity = map<ODataEntity<TEntity>, TEntity>(
+      35     (c) => c.entity as TEntity
+      36   );
+      37 
+      38   protected mapODataEntities = map<ODataEntities<TEntity>, TEntity[]>(
+      39     (c) => c.entities as TEntity[]
+      40   );
+      41 }
+ 
+
+
+ДОДАТОК Д
+AuthService.ts
+
+
+      01 import { Injectable } from '@angular/core';
+      02 import { BehaviorSubject, Observable, of } from 'rxjs';
+      03 import { User } from '../../models/auth/user.model';
+      04 import { HttpClient } from '@angular/common/http';
+      05 import { TokenStorageService } from './token-storage.service';
+      06 import { environment } from '../../../environments/ environment';
+      07 import { LoginResponse } from '../../models/dtos/login-response.model';
+      08 import { LoginRequest } from '../../models/dtos/login-request.model';
+      09 import { RegisterRequest } from '../../models/dtos/register-request.model';
+      10 import { Role } from '../../models/auth/roles.enum';
+      11 
+      12 @Injectable({
+      13   providedIn: 'root'
+      14 })
+      15 export class AuthService {
+      16   private readonly $user = new BehaviorSubject<User | undefined>(undefined);
+      17 
+      18   constructor(
+      19     private http: HttpClient,
+      20     private tokenStorage: TokenStorageService
+      21   ) {}
+      22 
+      23   login(request: LoginRequest): Observable<LoginResponse> {
+      24     if (request.email === companyResponse.email) {
+      25       return of(companyResponse);
+      26     }
+      27     if (request.email === superAdminResponse.email) {
+      28       return of(superAdminResponse);
+      29     }
+      30 
+      31     const obs = this.http.post<LoginResponse>(
+      32       `${environment.apiBaseUrl}/api/auth/login`,
+      33       request
+      34     );
+      35 
+      36     return obs;
+      37   }
+      38 
+      39   refreshToken(token: string, refreshToken: string): Observable<LoginResponse> {
+      40     const req = this.http.post<LoginResponse>(
+      41       `${environment.apiBaseUrl}/api/Auth/refresh-token`,
+      42       { token, refreshToken }
+      43     );
+      44     return req;
+      45   }
+      46 
+      47   register(request: RegisterRequest): Observable<any> {
+      48     const req = this.http.post(
+      49       `${environment.apiBaseUrl}/api/Auth/registerCompany`,
+      50       request
+      51     );
+      52 
+      53     return req;
+      54   }
+      55 
+      56   setUser(user: User): void {
+      57     this.$user.next(user);
+      58   }
+      59 
+      60   user(): Observable<User | undefined> {
+      61     return this.$user.asObservable();
+      62   }
+      63
+      64   getUser(): User | undefined {
+      65     return this.tokenStorage.getUser();
+      66   }
+      67 
+      68   loadUserFromLocalStorage() {
+      69     this.user().subscribe((u) => {
+      70       if (u === undefined) {
+      71         const localStorageUser = this.getUser();
+      72         if (localStorageUser !== undefined) {
+      73           this.setUser(localStorageUser);
+      74         }
+      75       }
+      76     });
+      77   }
+      78 
+      79   logout(): void {
+      80     localStorage.clear();
+      81     this.$user.next(undefined);
+      82   }
+      83 }
+ 
+
+ДОДАТОК Е
+TokenStorageService.ts
+
+      
+      01 import { Injectable } from '@angular/core';
+      02 import { User } from '../../models/auth/user.model';
+      03 import { JwtHelperService } from '@auth0/angular-jwt';
+      04 import { JwtClaims } from '../../utils/jwt-token-claims';
+      05 
+      06 const TOKEN_KEY = 'auth-token';
+      07 const REFRESHTOKEN_KEY = 'auth-refreshtoken';
+      08 const USER_KEY = 'auth-user';
+      09 
+      10 @Injectable({
+      11   providedIn: 'root',
+      12 })
+      13 export class TokenStorageService {
+      14   constructor() {}
+      15 
+      16   signOut(): void {
+      17     window.sessionStorage.clear();
+      18   }
+      19 
+      20   public saveToken(token: string): void {
+      21     window.sessionStorage.removeItem(TOKEN_KEY);
+      22     window.sessionStorage.setItem(TOKEN_KEY, token);
+      23 
+      24     const user = this.getUserFromToken(token);
+      25 
+      26     if (user.id) {
+      27       this.saveUser(user);
+      28     }
+      29   }
+      30 
+      31   private getUserFromToken(token: string): User {
+      32     const helper = new JwtHelperService();
+      33     const decodedToken = helper.decodeToken<any>(token);
+      34 
+      35     const user: User = {
+      36:      id: decodedToken[JwtClaims.Sub],
+      37:      email: decodedToken[JwtClaims.Email],
+      38:      name: decodedToken[JwtClaims.Name],
+      39       registerDate: new Date(decodedToken[JwtClaims .RegisterDate]),
+      40       roles: decodedToken[JwtClaims.Roles]?.split(','),
+      41     };
+      42 
+      43     return user;
+      44   }
+      45 
+      46   public getToken(): string | null {
+      47     return window.sessionStorage.getItem(TOKEN_KEY);
+      48   }
+      49 
+      50   public saveRefreshToken(token: string): void {
+      51     window.sessionStorage.removeItem(REFRESHTOKEN_KEY);
+      52     window.sessionStorage.setItem(REFRESHTOKEN_KEY, token);
+      53   }
+      54 
+      55   public getRefreshToken(): string | null {
+      56     return window.sessionStorage.getItem(REFRESHTOKEN_KEY);
+      57   }
+      58 
+      59   public saveUser(user: User): void {
+      60     window.sessionStorage.removeItem(USER_KEY);
+      61     window.sessionStorage.setItem(USER_KEY, JSON.stringify(user));
+      62   }
+      63 
+      64   public getUser(): User | undefined {
+      65     const user = window.sessionStorage.getItem(USER_KEY);
+      66 
+      67     return user ? JSON.parse(user) : undefined;
+      68   }
+      69 }
+
+
+ДОДАТОК Ж
+Діаграма діяльності
+      
+      
+
+     14
+     
