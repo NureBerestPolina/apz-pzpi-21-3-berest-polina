@@ -1,0 +1,723 @@
+     Міністерство освіти та науки України
+     Харківський національний університет радіоелектроніки
+     
+     
+     
+     
+
+     Лабораторна робота №5
+     з дисципліни: «Архітектура програмного забезпечення»
+     
+     
+     Мобільний застосунок для проєкту за темою:
+     «Програмна система для автоматизації логістики інтернет-шопінгу для малих та середніх бізнесів “En Route”»
+     
+     
+     
+     
+Виконала:
+ст. гр. ПЗПІ-21-3
+Берест П. В.
+
+Перевірив:
+ст. викл. кафедри ПІ Сокорчук І. П.
+     
+
+     
+     Харків 2024
+     ЗМІСТ
+
+     1 МЕТА РОБОТИ	2
+     2 ХІД РОБОТИ	2
+        2.1 ОПИС АРХІТЕКТУРИ СИСТЕМИ	2
+         2.1.1 Опис обраних технологій	2
+         2.1.2 Файлова структура	3
+         2.1.3 Структура компонент	4
+        2.2 ОПИС ІНЖЕНЕРНИХ РІШЕНЬ	6
+         2.2.1 Формування запитів	6
+         2.2.2 Аутентифіація користувачів	7
+         2.2.3 Локалізація	8
+        2.3 UML ДІАГРАМИ СИСТЕМИ	9
+         2.3.1 UML діаграма прецедентів	9
+         2.3.2 UML діаграма компонент	10
+         2.3.3 UML діаграма діяльності	10
+         2.3.4 UML діаграма станів	11
+     3 ВИСНОВКИ	12
+     ДОДАТОК А – RegistrationActivity.java	13
+     ДОДАТОК Б – AuthInterceptor.java	16
+     ДОДАТОК В – ODataService.java	19
+     ДОДАТОК Г – Strings.xml	23
+     ДОДАТОК Д – HttpClientFactory.java	26
+     ДОДАТОК Е – AuthService.java	27
+     ДОДАТОК Ж – Діаграма діяльності	31
+
+       
+     
+     
+     1 МЕТА РОБОТИ
+     
+     Метою виконання лабораторної роботи є набуття навичок із розробки мобільного програмного застосунку для великого проєкту, зокрема для розроблюваної програмної системи для автоматизації логістики інтернет-шопінгу для малих та середніх бізнесів “En Route”»
+     
+     2 ХІД РОБОТИ
+     2.1 ОПИС АРХІТЕКТУРИ СИСТЕМИ
+     2.1.1 Опис обраних технологій
+     
+     Для розробки мобільного застосунку для проєкту було обрано середовище Android Studio з використанням мови програмування Java.
+     Проєкт створено з налаштуванням на підтримку мінімальної версії Android API 24 (Android 7.0), цільовою ж обрано Android API 33 (Android 13). Такі конфігурації рекомендовані Google Play з 31.08.2023 та дозволяють запуск та роботу застосунка на 96,3% Android-пристроїв, які наразі використовуються.
+     У проєкті використано Java 8, оскільки це версія, яка повністю підтримується Android, плагін Android Gradle для оптимізації роботи засобів збірки, бібліотеку AndroidX для покращеної підтримки фрагментів та активностей.
+     Бібліотеку Material Design Components використано для створення зручного інтерфейсу користувача згідно з принципами Material Design.
+     Для виконання HTTP-запитів та отримання відповідей використано OkHttp. Для зручного фільтрування та «розширення» результатів виконання запитів використано протокол OData.
+     Використані технології забезпечили високу продуктивність, надійність і зручність управління кодом у процесі розробки та підключення до системи мобільного клієнта.
+     
+     2.1.2 Файлова структура
+     
+     Проєкт складається з «вікон» (актівіті, яких налічується 7), доменних моделей та DTO (моделей для виконання запитів), сервісів, які містять логіку для обробки даних, утиліт із допоміжними функціями для роботи з даними, ресурсних фалів (файлів розмітки, рядків, зображень, шрифтів, окремих загальних елементів розмітки), скриптів Gradle, які містять налаштування проєкту та підключених бібліотек.
+     Файли вікон розділені за логічним призначенням: загального користування, призначені для клієнта, призначені для доставника або менеджера компанії-підписниці системи. У кожного Activity файлу є відповідний layout файл (.xml), на якому налаштовано вигляд вікна. Ці файли знаходяться в папці res/layout.
+     Сервіси також знаходяться в окремій директорії. Наявні сервіс авторизації, для роботи з JWT, створення фабрики HttpClient, сервіси для роботи з даними клієнта, постачальника, відомостями про страви, філіали та замовлення, сервіс побудови запитів OData.
+     У директорії моделей наявні доменні моделі товару, позиції замовлення, категорії та виробника товару, комірки точки видачі та точки видачі, користувача, замовлення, організації та її співробітника.
+     Окремо збережено моделі для запитів – DTO для авторизації та реєстрації.
+     Директорія з константами містить відомості про базове посилання на сервер, назви endpoint для базового контролера OData на сервері, перелік статусів (етапів прийняття та виконання) замовлення.
+     Наявна директорія для інтерсепторів (див. додаток Б), які «перехоплюють» запити та додають до них заголовок із даними авторизації, оновлюють токен на основі токена для оновлення в разі закінчення його дії.
+     Допоміжні функції та утиліти: для роботи з датами, приведення їх до формату відповідно до локалі – також зберігаються в окремій директорії.
+     Ресурсні файли поділяються за призначенням. В окремих директоріях зберігаються файли з розміткою, файли компонентів розмітки, графічні зображення, файли зі значеннями використаних кольорів та тем, файли встановлених шрифтів та файли рядків відповідно до локалі.
+
+     2.1.3 Структура компонент
+
+     	Взаємодія користувача із застосунком розпочинається з відкриття MainActivity, в якій він обирає подальший шлях – реєстрацію в RegistrationActivity (див. додаток А),  або авторизацію (LoginActivity).
+     Після авторизації відповідно до ролі користувача йому відкривається подальший функціонал:
+01 if (response != null) {
+02   User user = AuthService.getInstance(this).getUser();
+03   Intent intent;
+04   String role = user.getRoles();
+05   if (role.equals(String.valueOf(Role.customer)))
+06   {
+07       intent = new Intent(LoginActivity.this, CustomerHomeActivity.class);
+08   }
+09   else {
+10       intent = new Intent(LoginActivity.this, ShopManagerHomeActivity.class);
+11   }
+12 
+13   startActivity(intent);
+14   finish();
+15 }
+     Для користувача в ролі клієнта доступні активіті для перегляду персоналізованих рекомендацій (RecommendationsActivity) для здійснення замовлення (на основі попередніх замовлень користувача обираються «улюблені» пропозиції, наявні на складах в магазинах), активіті перегляду стану замовлень (CustomerHomeActivity), здійснення відкриття комірки для отримання замовлення, активіті формування нового замовлення (MakeOrderActivity).
+     В ролі менеджера компанії-підписниці системи користувач може відстежувати замовлення в його магазині, взаємодіяти з комірками точки видачі для здійснення доставки замовлень, формувати звіти про доставку. 
+
+
+     2.2 ОПИС ІНЖЕНЕРНИХ РІШЕНЬ
+     2.2.1 Формування запитів
+     
+     В розроблюваній системі було використано протокол OData для створення запитів до серверного застосунку.
+     За принципами REST API було реалізовано «базовий сервіс» (див. додаток В). Сервіс надає базову логіку побудови запитів для будь-якої моделі. Для коректної роботи сервісу також було підключено бібліотеку Gson, яка дозволяє серіалізувати та десеріалізувати дані при роботі з JSON.
+     У разі, якщо необхідна специфічна логіка: спеціальні фільтри, сортування, «розширення» моделі іншими об’єктами, запит OData формується безпосередньо в специфічному сервісі. Кожна з основних моделей (наприклад, замовлення, товар) має свій сервіс. Наприклад, ось функція для запиту на отримання всіх точок видачі за конкретною організацією зареєстрованою в системі:
+      01   public List<PickupCounter> getOrganizationsCounters(UUID organizationId) {
+      02      List<PickupCounter> counters = new ArrayList<>();
+      03      ODataService<PickupCounter> t = new ODataService <PickupCounter>(PickupCounter.class, context);
+      04      ODataQueryBuilder builder = new ODataQueryBuilder();
+      05      builder.filter("OrganizationId eq " + organizationId.toString());
+      06
+      07      try {
+      08          counters = t.getAll(ODataEndpointsNames .PICKUP_COUNTERS, builder);
+      09      } catch (IOException e) {
+      10      }
+      11 
+      12      return counters;
+      13  } 
+     В застосунку реалізовано HttpClientFactory для використання OkHttpClient за патерном Singletone для оптимізації використання ресурсів (див. додаток Д).
+     
+     2.2.2 Аутентифікація користувача
+     
+     Система використовує використовує JSON Web Token (JWT) для перевірки аутентифікації користувача та визначення його ролі за відповіддю сервера.
+     Користувач у LoginActivity надсилає запит на авторизацію за допомогою аутентифікаційного ключа (адреса електронної пошти та пароль). На сервері створюється створює JWT та токен для оновлення (refresh token), які отримує мобільний клієнт. Коли JWT токен закінчує свій строк, на сервері за допомогою рефреш токена генерується новий JWT токен без необхідності повторно вводити логін та пароль. Це підвищує безпеку та покращує досвід користувача.
+     Коли користувач робить запит до API додатку, запит «перехоплює» AuthInterceptor та додає до його заголовку токени, цей інтерсептор також стежить за необхідністю оновлення токена та відправляє відповідний запит на сервер. 
+     JWT складається з трьох частин: заголовок (header), корисні дані (claims) та підпис (signature). Заголовок JWT містить інформацію про те, як обчислювати підпис JWT. Корисні дані (claims) – це інформація про користувача, яка зберігається всередині токена. 
+     За авторизацію в певній ролі, збереження даних про користувача та завершення сесій відповідає AuthService (див. додаток Е). TokenStorageService містить функції для роботи з токенами – отримання та запису інформації з них. 
+     Функціонал застосунку змінюється залежно від ролі авторизованого користувача користувача.
+
+     2.2.3 Локалізація	
+     
+     Для вирішення задачі локалізації були використані стандартні можливості платформи Android, що змінюють локалізацію додатку у відповідності до налаштувань мови на пристрої.
+     У проєкті використано xml файли локалізації res/values/strings.xml та res/values-uk/strings.xml. У файлах зібрано всі текстові дані застосунку, включно із повідомленнями, підказками та сповіщеннями (див. додаток Г).
+     Для того, щоб використати рядок в програмі, він «викликається» за своїм ідентифікатором:
+      1 private String makeFullDescription(Order order) {
+      2     return getResources()
+      3            .getString(R.string.about_order) 
+      4            + ": "
+      5            + order.toString();
+      6 }
+     
+
+
+     2.3 UML ДІАГРАМИ СИСТЕМИ
+     2.3.1 UML діаграма прецедентів
+
+     На рисунку 2.3.1 зображено діаграму прецедентів для  мобільного застосунку розроблюваної програмної системи. Можливі ролі користувачів: клієнт, який має на меті зробити замовлення із доставкою в точку видачі, та працівник компанії-підписниці (працівник магазину, який має зареєстровані в системі розумні точки видачі).
+     
+
+     Рисунок 2.3.1 – UML діаграма прецедентів для мобільного застосунку
+
+     2.3.2 UML діаграма компонент
+
+     На рисунку 2.3.2 зображено UML діаграму компонент для мобільного застосунку розроблюваної системи. На ній відображено залежності між його структурними компонентами. 
+     
+
+Рисунок 2.3.2 – UML діаграма компонент мобільного застосунку
+
+     2.3.3 UML діаграма діяльності
+
+     На діаграмі діяльності відображено (див. додаток Ж) модель основних послідовностей бізнес-процесів, пов’язаних із процесом замовлення страви. Для зручності розуміння на діаграмі використано «доріжки» для представлення процесів.
+
+     2.3.4 UML діаграма станів
+
+     UML діаграму станів зображено на рисунку 3.3. Діаграма візуалізує зміни станів процесу отримання клієнтом свого замовлення.
+     
+     
+     Рисунок 2.3.3 – UML діаграма станів отримання замовлення з холодильника
+
+     3 ВИСНОВКИ
+     
+     У ході виконання лабораторної роботи набули навички з розробки мобільного застосунку як частини великої програмної системи.
+     
+ДОДАТОК А
+     RegistrationActivity.java
+     
+      01 package com.example.enroute;
+      02 
+      03 import androidx.appcompat.app.AppCompatActivity;
+      04 
+      05 import android.content.Intent;
+      06 import android.os.Bundle;
+      07 import android.text.TextUtils;
+      08 import android.util.Patterns;
+      09 import android.view.View;
+      10 import android.widget.Button;
+      11 import android.widget.EditText;
+      12 import android.widget.Toast;
+      13 
+      14 import com.example.enroute.RequestModels.RegisterRequest;
+      15 import com.example.enroute.RequestModels.RegisterResponse;
+      16 import com.example.enroute.Services.AuthService;
+      17 
+      18 public class RegistrationActivity extends AppCompatActivity {
+      19 
+      20     private Button registerButton;
+      21     private EditText emailInput, passwordInput, nameInput;
+      22 
+      23     @Override
+      24     protected void onCreate(Bundle savedInstanceState) {
+      25         super.onCreate(savedInstanceState);
+      26         setContentView(R.layout.activity_registration);
+      27 
+      28         registerButton = (Button) findViewById(R.id .register_btn);
+      29         emailInput = (EditText) findViewById(R.id .register_email_input);
+      30         passwordInput = (EditText) findViewById(R.id .register_password_input);
+      31         nameInput = (EditText) findViewById(R.id .register_name_input);
+      32 
+      33         registerButton.setOnClickListener(new View.OnClickListener() {
+      34             @Override
+      35             public void onClick(View v) {
+      36                 if(validInput())
+      37                 {
+      38                     attemptRegister();
+      39                 }
+      40                 else{
+      41                     Toast.makeText(RegistrationActivity.this, getResources().getString(R.string.validation_fail), Toast.LENGTH_SHORT).show();
+      42                 }
+      43             }
+      44         });
+      45     }
+      46 
+      47     private boolean validInput()
+      48     {
+      49         boolean isEmailValid = isEmailValid(emailInput);
+      50         boolean isPasswordValid = isPasswordValid(passwordInput);
+      51         boolean isNameValid = isNameValid(nameInput);
+      52 
+      53         return isEmailValid && isPasswordValid && isNameValid;
+      54     }
+      55 
+      56     private void attemptRegister() {
+      57         String email = emailInput.getText().toString();
+      58         String password = passwordInput.getText().toString();
+      59         String name = nameInput.getText().toString();
+      60 
+      61         RegisterResponse response = AuthService.getInstance(this).register(new RegisterRequest(email, password, name));
+      62 
+      63         if (response != null) {
+      64             Intent intent = new Intent(RegistrationActivity .this, LoginActivity.class);
+      65             startActivity(intent);
+      66             finish();
+      67         }
+      68         else {
+      69             Toast.makeText(this, getResources() .getString(R.string.universal_fail), Toast.LENGTH_SHORT).show();
+      70         }
+      71     }
+      72 
+      73     private static boolean isEmailValid(EditText emailEditText) {
+      74         CharSequence email = emailEditText.getText() .toString().trim();
+      75         return (!TextUtils.isEmpty(email) && Patterns.EMAIL_ADDRESS.matcher(email).matches());
+      76     }
+      77 
+      78     private static boolean isPasswordValid(EditText passwordEditText) {
+      79         return passwordEditText.getText() .toString().trim().length() >= 6;
+      80     }
+      81 
+      82     private static boolean isNameValid(EditText nameEditText) {
+      83         return !TextUtils.isEmpty(nameEditText .getText().toString().trim());
+      84     }
+      85 }
+
+     
+
+ДОДАТОК Б
+AuthInterceptor.java
+      
+      01 /**
+      02  * Interceptor for adding authentication headers to HTTP requests.
+      03  * This interceptor is responsible for adding the Authorization header with a Bearer token
+      04  * obtained from the TokenStorageService to outgoing requests. It also handles token refreshing
+      05  * if a 401 (Unauthorized) response is received.
+      06  */
+      07 package com.example.enroute.interceptors;
+      08 
+      09 import com.example.enroute.services.AuthService;
+      10 import com.example.enroute.services.TokenStorageService;
+      11 
+      12 import java.io.IOException;
+      13 
+      14 import okhttp3.Interceptor;
+      15 import okhttp3.Request;
+      16 import okhttp3.Response;
+      17 
+      18 public class AuthInterceptor implements Interceptor {
+      19     private TokenStorageService tokenService;
+      20     private AuthService authService;
+      21 
+      22     /**
+      23      * Constructs an AuthInterceptor with the specified TokenStorageService and AuthService.
+      24      *
+      25      * @param tokenService The TokenStorageService used to retrieve and store authentication tokens.
+      26      * @param authService  The AuthService used to perform token refreshing and logout actions.
+      27      */
+      28     public AuthInterceptor(TokenStorageService tokenService, AuthService authService) {
+      29         this.tokenService = tokenService;
+      30         this.authService = authService;
+      31     }
+      32 
+      33     /**
+      34      * Intercepts the HTTP request to add the Authorization header with the Bearer token.
+      35      * If a 401 response is received, it attempts to refresh the token and retries the request.
+      36      *
+      37      * @param chain The interceptor chain.
+      38      * @return The response to the intercepted request.
+      39      * @throws IOException If an I/O error occurs during the interception.
+      40      */
+      41     @Override
+      42     public Response intercept(Chain chain) throws 
+IOException {
+      43         Request originalRequest = chain.request();
+      44         Request.Builder requestBuilder = originalRequest.newBuilder();
+      45 
+      46         String token = tokenService.getToken();
+      47         if (token != null) {
+      48             requestBuilder.addHeader("Authorization", "Bearer " + token);
+      49         }
+      50 
+      51         Request authRequest = requestBuilder.build();
+      52         Response response = chain.proceed(authRequest);
+      53 
+      54         if (response.code() == 401) {
+      55             String refreshToken = tokenService.getRefreshToken();
+      56             if (refreshToken != null) {
+      57                 synchronized (this) {
+      58                     String newToken = authService.refreshToken(token, refreshToken).getRefreshToken();
+      59                     if (newToken != null) {
+      60                         requestBuilder.header("Authorization", "Bearer " + newToken);
+      61                         authRequest = requestBuilder.build();
+      62                         return chain.proceed(authRequest);
+      63                     } else {
+      64                         authService.logout();
+      65                     }
+      66                 }
+      67             } else {
+      68                 authService.logout();
+      69             }
+      70         }
+      71 
+      72         return response;
+      73     }
+      74 }
+
+
+     ДОДАТОК В
+     ODataService.java
+      
+      001 package com.example.enroute.services;
+      002 
+      003 import android.content.Context;
+      004 
+      005 import com.example.enroute.Constants.Constants;
+      006 import com.google.gson.Gson;
+      007 import okhttp3.*;
+      008 
+      009 import java.io.IOException;
+      010 import java.lang.reflect.ParameterizedType;
+      011 import java.lang.reflect.Type;
+      012 import java.util.List;
+      013 import java.util.UUID;
+      014 
+      015 /**
+      016  * Generic service class for handling CRUD operations using OData protocol.
+      017  * @param <T> Type of the data model associated with the service.
+      018  */
+      019 public class ODataService<T> {
+      020     private static final String BASE_URL = Constants.BASE_URL + "/odata";
+      021 
+      022     private final Class<T> responseType;
+      023     private final OkHttpClient httpClient;
+      024     private final Gson gson;
+      025 
+      026     /**
+      027     * Constructs an ODataService instance.
+      028     * @param responseType Class object representing the response type.
+      029     * @param context The Android application context.
+      030     */
+      031     public ODataService(Class<T> responseType, Context context) {
+      032         this.responseType = responseType;
+      033         this.httpClient = HttpClientFactory.getInstance(context).getHttpClient();
+      034         this.gson = new Gson();
+      035     }
+      036 
+      037     public List<T> getAll(String endpoint, ODataQueryBuilder queryBuilder) throws IOException {
+      038         String url = BASE_URL + "/" + endpoint;
+      039         if (queryBuilder != null) {
+      040             url += "?" + queryBuilder.build();
+      041         }
+      042 
+      043         Request request = new Request.Builder()
+      044                 .url(url)
+      045                 .build();
+      046 
+      047         try (Response response = httpClient.newCall(request).execute()) {
+      048             if (!response.isSuccessful()) {
+      049                 throw new IOException("Unexpected code " + response);
+      050             }
+      051 
+      052             String responseBody = response.body().string();
+      053             return parseResponseList(responseBody);
+      054         }
+      055     }
+      056 
+      057     public T getById(String endpoint, UUID id, ODataQueryBuilder queryBuilder) throws IOException {
+      058         String url = BASE_URL + "/" + endpoint + "(" + id.toString() + ")";
+      059         if (queryBuilder != null) {
+      060             url += "?" + queryBuilder.build();
+      061         }
+      062 
+      063         Request request = new Request.Builder()
+      064                 .url(url)
+      065                 .build();
+      066 
+      067         try (Response response = httpClient.newCall(request).execute()) {
+      068             if (!response.isSuccessful()) {
+      069                 throw new IOException("Unexpected code " + response);
+      070             }
+      071 
+      072             String responseBody = response.body().string();
+      073             return parseResponse(responseBody);
+      074         }
+      075     }
+      076 
+      077     public void create(String endpoint, T entity) throws IOException {
+      078         String json = gson.toJson(entity);
+      079         RequestBody requestBody = RequestBody
+      080                                   .create(json, MediaType.parse("application/json"));
+      081 
+      082         Request request = new Request.Builder()
+      083                 .url(BASE_URL + "/" + endpoint)
+      084                 .post(requestBody)
+      085                 .build();
+      086 
+      087         try (Response response = httpClient.newCall(request)
+      088                                             .execute()) {
+      089             if (!response.isSuccessful()) {
+      090                 throw new IOException("Unexpected code " + response);
+      091             }
+      092         }
+      093     }
+      094 
+      095     public void update(String endpoint, String id, T entity) throws IOException {
+      096         String json = gson.toJson(entity);
+      097         RequestBody requestBody = RequestBody.create(json, 
+      098                                                     MediaType.parse("application/json"));
+      099 
+      100         Request request = new Request.Builder()
+      101                 .url(BASE_URL + "/" + endpoint + "(" + id + ")")
+      102                 .put(requestBody)
+      103                 .build();
+      104 
+      105         try (Response response = httpClient.newCall(request).execute()) {
+      106             if (!response.isSuccessful()) {
+      107                 throw new IOException("Unexpected code " + response);
+      108             }
+      109         }
+      110     }
+      111 
+      112     public void delete(String endpoint, String id) throws IOException {
+      113         Request request = new Request.Builder()
+      114                 .url(BASE_URL + "/" 
++ endpoint + "(" + id + ")")
+      115                 .delete()
+      116                 .build();
+      117 
+      118         try (Response response = httpClient.newCall(request).execute()) {
+      119             if (!response.isSuccessful()) {
+      120                 throw new IOException("Unexpected code " + response);
+      121             }
+      122         }
+      123     }
+      124 }
+
+
+ДОДАТОК Г 
+Strings.xml
+      
+      01 <resources>
+      02     <string name="app_name">EnRoute</string>
+      03     <string name="title_activity_login">LoginActivity</string>
+      04     <string name="prompt_email">Email</string>
+      05     <string name="prompt_password">Password</string>
+      06     <string name="action_sign_in">Sign in or register</string>
+      07     <string name="action_sign_in_short">Sign in</string>
+      08     <string name="welcome_message">Welcome!</string>
+      09     <string name="invalid_username">Not a valid username</string>
+      10     <string name="invalid_password">Password must be >5 characters</string>
+      11     <string name="login_failed">Login failed</string>
+      12     <string name="universal_fail">Oops! Something went wrong</string>
+      13     <string name="validation_fail">Incorrect input. Try again</string>
+      14 
+      15     <string name="motto">We deliver comfort to your life way!</string>
+      16     <string name="sign_up">Sign up</string>
+      17     <string name="log_in">Log into account</string>
+      18
+      19     <string name="enter_email">Enter your email</string>
+      20     <string name="enter_password">Enter your password</string>
+      21     <string name="enter_name">Enter your name</string>
+      22     <string name="sign_up_description">Fill in the form to take advantage of En Route</string>
+      23 
+      24     <string name="header_user_orders">My orders</string>
+      25     <string name="header_user_recommendations">Recommended</string>
+      26 
+      27     <string name="no_orders">You have got no orders yet!</string>
+      28     <string name="no_recommendations">You have got no recommendations yet!</string>
+      29     <string name="order_title">Order info</string>
+      30     <string name="recommendation_title">Recommended order</string>
+      31     <string name="supply_title">Needs to be delivered</string>
+      32     <string name="about_order">Your order </string>
+      33     <string name="order_status">Order status: </string>
+      34     <string name="currency">UAH</string>
+      35     <string name="amount">items</string>
+      36     <string name="make_delivery_report">Delivered!</string>
+      37     <string name="pick_up">Pick up</string>
+      38     <string name="repeat_order">Repeat!</string>
+      39     <string name="close">Close</string>
+      40 
+      41     <string name="succesful_order_pick_up">Hope you will like it!</string>
+      42     <string name="failed_order_pick_up">Something went wrong while opening the counter cell. Try again!</string>
+      43 
+      44     <string name="header_add_order">Place order</string>
+      45     <string name="select_shop">Select a shop</string>
+      46     <string name="select_category">Select a category of goods to order</string>
+      47     <string name="select_good">Select good to order</string>
+      48     <string name="select_counter">Select a counter to deliver to</string>
+      49     <string name="input_count">Amount (in items):</string>
+      50     <string name="total">Order total:</string>
+      51     <string name="make_order">Order now!</string>
+      52     <string name="succesful_order">Order placed successfully!</string>
+      53     <string name="failed_order">Something went wrong. Try again!</string>
+      54     <string name="header_recomendations">Time to repeat </string>
+      55 
+      56     <string name="header_manager_home">Deliveries needed</string>
+      57     <string name="counter_placement">Counter placement description: </string>
+      58     <string name="no_deliveries_needed">There are currently no counters, where the delivery is needed.</string>
+      59     <string name="approve">Finish delivery</string>
+      60     <string name="open_key">Open code</string>
+      61 </resources> 
+
+ДОДАТОК Д
+HttpClientFactory.java
+
+      01 package com.example.enroute.services;
+      02 
+      03 import android.content.Context;
+      04 
+      05 import com.example.enroute.interceptors.AuthInterceptor;
+      06 
+      07 import okhttp3.OkHttpClient;
+      08 
+      09 public class HttpClientFactory {
+      10     private static HttpClientFactory instance;
+      11     private OkHttpClient client;
+      12 
+      13     private HttpClientFactory(Context context) {
+      14         client = new OkHttpClient.Builder()
+      15                 .addInterceptor(new AuthInterceptor(new TokenStorageService(context), 
+      16                 AuthService.getInstance(context)))
+      17                 .build();
+      18     }
+      19 
+      20     public static HttpClientFactory getInstance(Context context) {
+      21         if (instance == null) {
+      22             instance = new HttpClientFactory(context);
+      23         }
+      24         return instance;
+      25     }
+      26 
+      27     public OkHttpClient getHttpClient() {
+      28         return client;
+      29     }
+      30 }
+
+ДОДАТОК Е
+AuthService.java
+      
+      001 package com.example.enroute.services;
+      002 
+      003 import com.example.enroute.Constants.Constants;
+      004 import com.example.enroute.Models.User;
+      005 import com.example.enroute.RequestModels.LoginRequest;
+      006 import com.example.enroute.RequestModels.LoginResponse;
+      007 import com.example.enroute.RequestModels.RegisterRequest;
+      008 import com.example.enroute.RequestModels.RegisterResponse;
+      009 import com.google.gson.Gson;
+      010 
+      011 import java.io.IOException;
+      012 
+      013 import okhttp3.OkHttpClient;
+      014 
+      015 public class AuthService {
+      016     public static final MediaType JSON = MediaType.get("application/json; charset=utf-8");
+      017 
+      018     private static AuthService instance;
+      019     private TokenStorageService tokenStorage;
+      020     private OkHttpClient client;
+      021     private Gson gson;
+      022 
+      023     private AuthService(Context context) {
+      024         tokenStorage = new TokenStorageService(context);
+      025         client = new OkHttpClient();
+      026         gson = new Gson();
+      027     }
+      028 
+      029     public static AuthService getInstance(Context context) {
+      030         if (instance == null) {
+      031             instance = new AuthService(context);
+      032         }
+      033        return instance;
+      034     }
+      035 
+      036     public LoginResponse login(LoginRequest loginRequest) {
+      037         String json = gson.toJson(loginRequest);
+      038         RequestBody body = RequestBody.create(json, JSON);
+      039 
+      040         Request request = new Request.Builder()
+      041                 .url(Constants.BASE_URL + "/api/Auth/login")
+      042                 .post(body)
+      043                 .build();
+      044
+      045         try {
+      046             Response response = client.newCall(request).execute();
+      047 
+      048             if (response.isSuccessful()) {
+      049                 String responseBody = response.body().string();
+      050 
+      051                 LoginResponse loginResponse = gson.fromJson(responseBody, LoginResponse.class);
+      052                 tokenStorage.saveToken(loginResponse.getToken());
+      053                 tokenStorage.saveRefreshToken(loginResponse.getRefreshToken());
+      054 
+      055                 return loginResponse;
+      056             }
+      057         }
+      058         catch (IOException e) {
+      059             return null;
+      060         }
+      061 
+      062         return null;
+      063     }
+      064 
+      065     public RegisterResponse register(RegisterRequest registerRequest) {
+      066         String json = gson.toJson(registerRequest);
+      067         RequestBody body = RequestBody.create(json, JSON);
+      068 
+      069         Request request = new Request.Builder()
+      070                 .url(Constants.BASE_URL + "/api/Auth/register")
+      071                 .post(body)
+      072                 .build();
+      073 
+      074         try {
+      075             Response response = client.newCall(request).execute();
+      076 
+      077             if (response.isSuccessful()) {
+      078                 String responseBody = response.body().string();
+      079 
+      080                 RegisterResponse registerResponse = gson.fromJson(responseBody, RegisterResponse.class);
+      081                 return registerResponse;
+      082             }
+      083         }
+      084         catch (IOException e) {
+      085             return null;
+      086         }
+      087 
+      088         return null;
+      089      }
+      090
+      091     public LoginResponse refreshToken(String token, String refreshToken) {
+      092         String jsonBody = "{\"token\":\"" 
+      093                             + token + "\", \"refreshToken\":\"" 
+      094                             + refreshToken + "\"}";
+      095 
+      096         RequestBody requestBody = RequestBody.create(jsonBody, JSON);
+      097 
+      098         Request request = new Request.Builder()
+      099                 .url(Constants.BASE_URL + "/api/Auth/refresh-token")
+      100                 .post(requestBody)
+      101                 .build();
+      102 
+      103         try {
+      104             Response response = client.newCall(request).execute();
+      105 
+      106             if (response.isSuccessful()) {
+      107                 String responseBody = response.body().string();
+      108 
+      109                 LoginResponse loginResponse = gson.fromJson(responseBody, LoginResponse.class);
+      110                 tokenStorage.saveToken(loginResponse.getToken());
+      111                 tokenStorage.saveRefreshToken(loginResponse.getRefreshToken());
+      112 
+      113                 return loginResponse;
+      114             }
+      115         }
+      116         catch (IOException e) {
+      117             return null;
+      118         }
+      119 
+      120         return null;
+      121     }
+      122
+      123     public User getUser()
+      124     {
+      125         return tokenStorage.getUser();
+      126     }
+      127 
+      128     public void logout() {
+      129         tokenStorage.signOut();
+      130     }
+      131 }
+       
+
+ДОДАТОК Ж
+Діаграма діяльності
+      
+      
+
+     3
+     
